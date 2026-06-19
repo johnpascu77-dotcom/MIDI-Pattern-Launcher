@@ -5,7 +5,7 @@ NewProjectAudioProcessorEditor::NewProjectAudioProcessorEditor(NewProjectAudioPr
     : AudioProcessorEditor(&p),
     audioProcessor(p)
 {
-    setSize(720, 660);
+    setSize(720, 720);
 
     addAndMakeVisible(editPattern1Button);
     addAndMakeVisible(editPattern2Button);
@@ -25,6 +25,10 @@ NewProjectAudioProcessorEditor::NewProjectAudioProcessorEditor(NewProjectAudioPr
     addAndMakeVisible(transposeResetButton);
     addAndMakeVisible(transposeUpButton);
     addAndMakeVisible(transposeUpOctaveButton);
+
+    addAndMakeVisible(rotationDownButton);
+    addAndMakeVisible(rotationResetButton);
+    addAndMakeVisible(rotationUpButton);
 
     setupButtonCallbacks();
     updateEditPatternButtonHighlights();
@@ -137,6 +141,24 @@ void NewProjectAudioProcessorEditor::setupButtonCallbacks()
             audioProcessor.changePatternTranspose(getDisplayedPattern(), 12);
             repaint();
         };
+
+    rotationDownButton.onClick = [this]()
+        {
+            audioProcessor.changePatternRotation(getDisplayedPattern(), -1);
+            repaint();
+        };
+
+    rotationResetButton.onClick = [this]()
+        {
+            audioProcessor.resetPatternRotation(getDisplayedPattern());
+            repaint();
+        };
+
+    rotationUpButton.onClick = [this]()
+        {
+            audioProcessor.changePatternRotation(getDisplayedPattern(), 1);
+            repaint();
+        };
 }
 
 void NewProjectAudioProcessorEditor::updateEditPatternButtonHighlights()
@@ -212,6 +234,14 @@ juce::String NewProjectAudioProcessorEditor::transposeTextFromValue(int value) c
     return juce::String(value);
 }
 
+juce::String NewProjectAudioProcessorEditor::rotationTextFromValue(int value) const
+{
+    if (value > 0)
+        return "+" + juce::String(value);
+
+    return juce::String(value);
+}
+
 int NewProjectAudioProcessorEditor::getDisplayedPattern() const
 {
     return selectedEditPattern;
@@ -280,6 +310,7 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
 
     const int displayedPattern = getDisplayedPattern();
     const int patternTranspose = audioProcessor.getPatternTranspose(displayedPattern);
+    const int patternRotation = audioProcessor.getPatternRotation(displayedPattern);
 
     auto bounds = getLocalBounds().reduced(24);
 
@@ -295,7 +326,7 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.3.0 - pattern transpose",
+    g.drawFittedText("v1.4.0 - pattern rotation",
         bounds.removeFromTop(28),
         juce::Justification::centred,
         1);
@@ -334,7 +365,8 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
     juce::String selectorText;
     selectorText << "Editing Pattern: " << (displayedPattern + 1)
         << "    Playback Active: " << patternNameFromValue(activePattern)
-        << "    Transpose: " << transposeTextFromValue(patternTranspose);
+        << "    Tr: " << transposeTextFromValue(patternTranspose)
+        << "    Rot: " << rotationTextFromValue(patternRotation);
 
     g.drawFittedText(selectorText,
         bounds.removeFromTop(24),
@@ -455,7 +487,8 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
     juce::String editorText;
     editorText << "Selected Step: " << (selectedStep + 1) << "    ";
     editorText << "Edit Pattern: " << (displayedPattern + 1) << "    ";
-    editorText << "Transpose: " << transposeTextFromValue(patternTranspose) << "\n";
+    editorText << "Tr: " << transposeTextFromValue(patternTranspose) << "    ";
+    editorText << "Rot: " << rotationTextFromValue(patternRotation) << "\n";
 
     if (selectedHasNote)
     {
@@ -562,4 +595,19 @@ void NewProjectAudioProcessorEditor::resized()
     transposeRow.removeFromLeft(transposeGap);
 
     transposeUpOctaveButton.setBounds(transposeRow.removeFromLeft(transposeButtonWidth));
+
+    bounds.removeFromTop(14);
+
+    auto rotationRow = bounds.removeFromTop(38);
+
+    const int rotationGap = 8;
+    const int rotationButtonWidth = 90;
+
+    rotationDownButton.setBounds(rotationRow.removeFromLeft(rotationButtonWidth));
+    rotationRow.removeFromLeft(rotationGap);
+
+    rotationResetButton.setBounds(rotationRow.removeFromLeft(rotationButtonWidth));
+    rotationRow.removeFromLeft(rotationGap);
+
+    rotationUpButton.setBounds(rotationRow.removeFromLeft(rotationButtonWidth));
 }

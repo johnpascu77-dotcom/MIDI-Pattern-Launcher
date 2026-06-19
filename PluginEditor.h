@@ -20,6 +20,7 @@ private:
     juce::String patternNameFromValue(int value) const;
     juce::String pendingNameFromValue(int value) const;
     juce::String transposeTextFromValue(int value) const;
+    juce::String rotationTextFromValue(int value) const;
 
     int getDisplayedPattern() const;
     juce::Rectangle<int> getStepArea() const;
@@ -52,6 +53,10 @@ private:
     juce::TextButton transposeResetButton{ "Tr 0" };
     juce::TextButton transposeUpButton{ "Tr +" };
     juce::TextButton transposeUpOctaveButton{ "Tr +12" };
+
+    juce::TextButton rotationDownButton{ "Rot -" };
+    juce::TextButton rotationResetButton{ "Rot 0" };
+    juce::TextButton rotationUpButton{ "Rot +" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NewProjectAudioProcessorEditor)
 };
