@@ -61,6 +61,11 @@ public:
     void resetPatternTranspose(int patternIndex);
     int getTransposedStepNote(int patternIndex, int stepIndex) const;
 
+    int getPatternRotation(int patternIndex) const;
+    void changePatternRotation(int patternIndex, int deltaSteps);
+    void resetPatternRotation(int patternIndex);
+    int getRotatedSourceStepIndex(int patternIndex, int playbackStepIndex) const;
+
 private:
     struct Step
     {
@@ -90,7 +95,14 @@ private:
     double mySampleRate = 44100.0;
 
     std::array<Pattern, numPatterns> patterns;
+
+    // v1.3.0: non-destructive event-time transpose.
     std::array<int, numPatterns> patternTranspose{ 0, 0, 0 };
+
+    // v1.4.0: non-destructive playback-time rotation.
+    // 0 = no rotation.
+    // +1 means stored material sounds one step later.
+    std::array<int, numPatterns> patternRotation{ 0, 0, 0 };
 
     // Pattern state
     int activePattern = -1;        // -1 = stopped, 0/1/2 = active pattern

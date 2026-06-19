@@ -93,6 +93,7 @@ void NewProjectAudioProcessor::initialisePatterns()
     };
 
     patternTranspose = { 0, 0, 0 };
+    patternRotation = { 0, 0, 0 };
 }
 
 NewProjectAudioProcessor::Step NewProjectAudioProcessor::getStepForPattern(int patternIndex,
@@ -281,6 +282,56 @@ int NewProjectAudioProcessor::getTransposedStepNote(int patternIndex, int stepIn
         return -1;
 
     return juce::jlimit(0, 127, step.note + getPatternTranspose(patternIndex));
+}
+
+//==============================================================================
+// v1.4.0 rotation helpers.
+// These are non-destructive: they do not move or rewrite stored step data.
+//
+// Rotation meaning:
+//   0  = no rotation
+//   +1 = stored material sounds one step later
+//   +2 = stored material sounds two steps later
+//
+// Therefore, when playback is currently at stepIndex, we read from:
+//
+//   sourceStepIndex = stepIndex - rotation
+//
+// with wraparound inside 0..15.
+
+int NewProjectAudioProcessor::getPatternRotation(int patternIndex) const
+{
+    if (patternIndex < 0 || patternIndex >= numPatterns)
+        return 0;
+
+    return patternRotation[static_cast<size_t>(patternIndex)];
+}
+
+void NewProjectAudioProcessor::changePatternRotation(int patternIndex, int deltaSteps)
+{
+    if (patternIndex < 0 || patternIndex >= numPatterns)
+        return;
+
+    auto& rotation = patternRotation[static_cast<size_t>(patternIndex)];
+
+    rotation += deltaSteps;
+    rotation = ((rotation % patternLength) + patternLength) % patternLength;
+}
+
+void NewProjectAudioProcessor::resetPatternRotation(int patternIndex)
+{
+    if (patternIndex < 0 || patternIndex >= numPatterns)
+        return;
+
+    patternRotation[static_cast<size_t>(patternIndex)] = 0;
+}
+
+int NewProjectAudioProcessor::getRotatedSourceStepIndex(int patternIndex,
+    int playbackStepIndex) const
+{
+    const int rotation = getPatternRotation(patternIndex);
+
+    return ((playbackStepIndex - rotation) % patternLength + patternLength) % patternLength;
 }
 
 //==============================================================================
@@ -540,10 +591,10 @@ void NewProjectAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         //======================================================================
         // 4a. Send pending note-offs exactly on their musical target step.
         //
-        // Important for transpose:
+        // Important for transpose and rotation:
         // PendingNoteOff stores the exact MIDI note that was originally sent.
-        // Therefore, if transpose changes while a note is held, the correct
-        // note-off is still sent.
+        // Therefore, if transpose or rotation changes while a note is held,
+        // the correct note-off is still sent.
 
         for (auto it = pendingNoteOffs.begin(); it != pendingNoteOffs.end(); )
         {
@@ -601,9 +652,14 @@ void NewProjectAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             continue;
 
         const int stepsSincePatternStart = step - patternStartStep;
-        const int stepIndex = ((stepsSincePatternStart % patternLength) + patternLength) % patternLength;
+        const int playbackStepIndex = ((stepsSincePatternStart % patternLength) + patternLength) % patternLength;
 
-        const Step currentStepData = getStepForPattern(activePattern, stepIndex);
+        // v1.4.0:
+        // Rotation is applied only to the source step lookup.
+        // The playback clock and displayed current step remain unchanged.
+        const int sourceStepIndex = getRotatedSourceStepIndex(activePattern, playbackStepIndex);
+
+        const Step currentStepData = getStepForPattern(activePattern, sourceStepIndex);
 
         if (currentStepData.note >= 0
             && currentStepData.velocity > 0
