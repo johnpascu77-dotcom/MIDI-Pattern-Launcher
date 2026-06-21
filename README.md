@@ -1,3 +1,19 @@
+## v1.5.0 - Pattern Inversion
+
+### Added
+- Non-destructive per-pattern pitch inversion.
+- Inversion mirrors notes around C4 / MIDI note 60.
+- Added Inv Off / Inv On control to the transform row.
+- Added inversion state display to the main editor and selected-step panel.
+
+### Transform Pipeline
+Stored Note -> Inversion -> Transpose -> MIDI Output
+
+### Preserved
+- Stored MIDI step data remains unchanged.
+- Existing transpose and rotation behavior remains compatible.
+- Pending note-off safety continues to use the exact emitted MIDI note.
+
 # MIDI Pattern Launcher — v1.4.0
 
 ## Version Summary
