@@ -1,0 +1,36 @@
+# Build outputs
+Builds/VisualStudio2022/x64/
+Builds/VisualStudio2022/.vs/
+Builds/VisualStudio2022/Debug/
+Builds/VisualStudio2022/Release/
+
+# Visual Studio temporary files
+.vs/
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+*.pdb
+*.ilk
+*.obj
+*.tlog
+*.log
+*.lastbuildstate
+*.ipch
+*.aps
+*.ncb
+*.opensdf
+*.sdf
+
+# Compiled binaries
+*.dll
+*.vst3
+*.exe
+*.lib
+*.exp
+
+# macOS, if ever used
+.DS_Store
+
+# JUCE generated cache
+JuceLibraryCode/modules/
