@@ -60,11 +60,17 @@ public:
     void changePatternTranspose(int patternIndex, int deltaSemitones);
     void resetPatternTranspose(int patternIndex);
     int getTransposedStepNote(int patternIndex, int stepIndex) const;
+    int applyPatternTransformsToNote(int patternIndex, int note) const;
 
     int getPatternRotation(int patternIndex) const;
     void changePatternRotation(int patternIndex, int deltaSteps);
     void resetPatternRotation(int patternIndex);
     int getRotatedSourceStepIndex(int patternIndex, int playbackStepIndex) const;
+    bool getPatternInverted(int patternIndex) const;
+    void togglePatternInverted(int patternIndex);
+    void setPatternInverted(int patternIndex, bool shouldBeInverted);
+    int getInvertedStepNote(int patternIndex, int stepIndex) const;
+    int getTransformedStepNote(int patternIndex, int stepIndex) const;
 
 private:
     struct Step
@@ -103,6 +109,12 @@ private:
     // 0 = no rotation.
     // +1 means stored material sounds one step later.
     std::array<int, numPatterns> patternRotation{ 0, 0, 0 };
+    // v1.5.0: non-destructive pitch inversion.
+    // false = normal playback.
+    // true  = mirror stored notes around inversionAxisNote before transposition.
+    std::array<bool, numPatterns> patternInverted{ false, false, false };
+
+    static constexpr int inversionAxisNote = 60;
 
     // Pattern state
     int activePattern = -1;        // -1 = stopped, 0/1/2 = active pattern

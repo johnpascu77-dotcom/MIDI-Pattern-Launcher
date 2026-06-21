@@ -29,6 +29,7 @@ NewProjectAudioProcessorEditor::NewProjectAudioProcessorEditor(NewProjectAudioPr
     addAndMakeVisible(rotationDownButton);
     addAndMakeVisible(rotationResetButton);
     addAndMakeVisible(rotationUpButton);
+    addAndMakeVisible(inversionToggleButton);
 
     setupButtonCallbacks();
     updateEditPatternButtonHighlights();
@@ -159,6 +160,12 @@ void NewProjectAudioProcessorEditor::setupButtonCallbacks()
             audioProcessor.changePatternRotation(getDisplayedPattern(), 1);
             repaint();
         };
+
+    inversionToggleButton.onClick = [this]()
+        {
+            audioProcessor.togglePatternInverted(getDisplayedPattern());
+            repaint();
+        };
 }
 
 void NewProjectAudioProcessorEditor::updateEditPatternButtonHighlights()
@@ -232,6 +239,11 @@ juce::String NewProjectAudioProcessorEditor::transposeTextFromValue(int value) c
         return "+" + juce::String(value);
 
     return juce::String(value);
+}
+
+juce::String NewProjectAudioProcessorEditor::inversionTextFromValue(bool value) const
+{
+    return value ? "On" : "Off";
 }
 
 juce::String NewProjectAudioProcessorEditor::rotationTextFromValue(int value) const
@@ -311,6 +323,7 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
     const int displayedPattern = getDisplayedPattern();
     const int patternTranspose = audioProcessor.getPatternTranspose(displayedPattern);
     const int patternRotation = audioProcessor.getPatternRotation(displayedPattern);
+    const bool patternInverted = audioProcessor.getPatternInverted(displayedPattern);
 
     auto bounds = getLocalBounds().reduced(24);
 
@@ -326,7 +339,7 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.4.1 - UI consolidation",
+    g.drawFittedText("v1.5.0 - Pattern inversion",
         bounds.removeFromTop(28),
         juce::Justification::centred,
         1);
@@ -366,7 +379,8 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
     selectorText << "Editing Pattern: " << (displayedPattern + 1)
         << "    Playback Active: " << patternNameFromValue(activePattern)
         << "    Tr: " << transposeTextFromValue(patternTranspose)
-        << "    Rot: " << rotationTextFromValue(patternRotation);
+        << "    Rot: " << rotationTextFromValue(patternRotation)
+        << "    Inv: " << inversionTextFromValue(patternInverted);
 
     g.drawFittedText(selectorText,
         bounds.removeFromTop(24),
@@ -477,7 +491,7 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
 
     const bool selectedHasNote = audioProcessor.stepHasNote(displayedPattern, selectedStep);
     const int selectedNote = audioProcessor.getStepNote(displayedPattern, selectedStep);
-    const int selectedTransposedNote = audioProcessor.getTransposedStepNote(displayedPattern, selectedStep);
+    const int selectedTransformedNote = audioProcessor.getTransformedStepNote(displayedPattern, selectedStep);
     const int selectedVelocity = audioProcessor.getStepVelocity(displayedPattern, selectedStep);
     const int selectedDuration = audioProcessor.getStepDurationSteps(displayedPattern, selectedStep);
 
@@ -488,14 +502,15 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
     editorText << "Selected Step: " << (selectedStep + 1) << "    ";
     editorText << "Edit Pattern: " << (displayedPattern + 1) << "    ";
     editorText << "Tr: " << transposeTextFromValue(patternTranspose) << "    ";
-    editorText << "Rot: " << rotationTextFromValue(patternRotation) << "\n";
+    editorText << "Rot: " << rotationTextFromValue(patternRotation) << "    ";
+    editorText << "Inv: " << inversionTextFromValue(patternInverted) << "\n";
 
     if (selectedHasNote)
     {
         editorText << "Note: " << selectedNote;
 
-        if (patternTranspose != 0)
-            editorText << " -> " << selectedTransposedNote;
+    if (patternTranspose != 0 || patternInverted)
+        editorText << " -> " << selectedTransformedNote;
 
         editorText << "    ";
         editorText << "Velocity: " << selectedVelocity << "    ";
@@ -510,6 +525,8 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
         editorBox.reduced(16),
         juce::Justification::centredLeft,
         2);
+
+    inversionToggleButton.setButtonText(patternInverted ? "Inv On" : "Inv Off");
 
     // Bottom controls are real buttons laid out in resized().
 }
@@ -586,9 +603,9 @@ void NewProjectAudioProcessorEditor::resized()
 
     auto transformRow = bounds.removeFromTop(38);
 
-    const int transformGap = 8;
-    const int transformButtonWidth = 72;
-    const int transformSectionGap = 20;
+    const int transformGap = 6;
+    const int transformButtonWidth = 62;
+    const int transformSectionGap = 14;
 
     transposeDownOctaveButton.setBounds(transformRow.removeFromLeft(transformButtonWidth));
     transformRow.removeFromLeft(transformGap);
@@ -613,4 +630,8 @@ void NewProjectAudioProcessorEditor::resized()
     transformRow.removeFromLeft(transformGap);
 
     rotationUpButton.setBounds(transformRow.removeFromLeft(transformButtonWidth));
+
+    transformRow.removeFromLeft(transformSectionGap);
+
+    inversionToggleButton.setBounds(transformRow.removeFromLeft(transformButtonWidth));
 }

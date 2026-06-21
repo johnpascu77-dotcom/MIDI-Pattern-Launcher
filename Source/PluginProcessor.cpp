@@ -94,6 +94,7 @@ void NewProjectAudioProcessor::initialisePatterns()
 
     patternTranspose = { 0, 0, 0 };
     patternRotation = { 0, 0, 0 };
+    patternInverted = { false, false, false };
 }
 
 NewProjectAudioProcessor::Step NewProjectAudioProcessor::getStepForPattern(int patternIndex,
@@ -283,7 +284,82 @@ int NewProjectAudioProcessor::getTransposedStepNote(int patternIndex, int stepIn
 
     return juce::jlimit(0, 127, step.note + getPatternTranspose(patternIndex));
 }
+//==============================================================================
+// v1.5.0 inversion helpers.
+// These are non-destructive: stored step notes are never rewritten.
+//
+// Transform order:
+//   Stored Note -> Inversion -> Transposition -> MIDI Output
+//
+// Inversion axis:
+//   60 = middle C / C4.
+//   Example:
+//     64 becomes 56
+//     67 becomes 53
+//     60 remains 60
 
+bool NewProjectAudioProcessor::getPatternInverted(int patternIndex) const
+{
+    if (patternIndex < 0 || patternIndex >= numPatterns)
+        return false;
+
+    return patternInverted[static_cast<size_t>(patternIndex)];
+}
+
+void NewProjectAudioProcessor::togglePatternInverted(int patternIndex)
+{
+    if (patternIndex < 0 || patternIndex >= numPatterns)
+        return;
+
+    auto& inverted = patternInverted[static_cast<size_t>(patternIndex)];
+    inverted = !inverted;
+}
+
+void NewProjectAudioProcessor::setPatternInverted(int patternIndex, bool shouldBeInverted)
+{
+    if (patternIndex < 0 || patternIndex >= numPatterns)
+        return;
+
+    patternInverted[static_cast<size_t>(patternIndex)] = shouldBeInverted;
+}
+
+int NewProjectAudioProcessor::applyPatternTransformsToNote(int patternIndex, int note) const
+{
+    if (note < 0)
+        return -1;
+
+    int transformedNote = note;
+
+    if (getPatternInverted(patternIndex))
+        transformedNote = (inversionAxisNote * 2) - transformedNote;
+
+    transformedNote += getPatternTranspose(patternIndex);
+
+    return juce::jlimit(0, 127, transformedNote);
+}
+
+int NewProjectAudioProcessor::getInvertedStepNote(int patternIndex, int stepIndex) const
+{
+    const Step step = getStepForPattern(patternIndex, stepIndex);
+
+    if (step.note < 0)
+        return -1;
+
+    if (!getPatternInverted(patternIndex))
+        return step.note;
+
+    return juce::jlimit(0, 127, (inversionAxisNote * 2) - step.note);
+}
+
+int NewProjectAudioProcessor::getTransformedStepNote(int patternIndex, int stepIndex) const
+{
+    const Step step = getStepForPattern(patternIndex, stepIndex);
+
+    if (step.note < 0)
+        return -1;
+
+    return applyPatternTransformsToNote(patternIndex, step.note);
+}
 //==============================================================================
 // v1.4.0 rotation helpers.
 // These are non-destructive: they do not move or rewrite stored step data.
@@ -669,8 +745,7 @@ void NewProjectAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 juce::jlimit(1, 127, currentStepData.velocity)
                 );
 
-            const int transpose = getPatternTranspose(activePattern);
-            const int outputNote = juce::jlimit(0, 127, currentStepData.note + transpose);
+            const int outputNote = applyPatternTransformsToNote(activePattern, currentStepData.note);
 
             midiMessages.addEvent(juce::MidiMessage::noteOn(midiChannel,
                 outputNote,
