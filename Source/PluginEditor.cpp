@@ -115,55 +115,73 @@ void NewProjectAudioProcessorEditor::setupButtonCallbacks()
 
     transposeDownOctaveButton.onClick = [this]()
         {
-            audioProcessor.changePatternTranspose(getDisplayedPattern(), -12);
+            const int pattern = getDisplayedPattern();
+            audioProcessor.changePatternTranspose(pattern, -12);
+            audioProcessor.updateAutomationParametersForPattern(pattern);
             repaint();
         };
 
     transposeDownButton.onClick = [this]()
         {
-            audioProcessor.changePatternTranspose(getDisplayedPattern(), -1);
+            const int pattern = getDisplayedPattern();
+            audioProcessor.changePatternTranspose(pattern, -1);
+            audioProcessor.updateAutomationParametersForPattern(pattern);
             repaint();
         };
 
     transposeResetButton.onClick = [this]()
         {
-            audioProcessor.resetPatternTranspose(getDisplayedPattern());
+            const int pattern = getDisplayedPattern();
+            audioProcessor.resetPatternTranspose(pattern);
+            audioProcessor.updateAutomationParametersForPattern(pattern);
             repaint();
         };
 
     transposeUpButton.onClick = [this]()
         {
-            audioProcessor.changePatternTranspose(getDisplayedPattern(), 1);
+            const int pattern = getDisplayedPattern();
+            audioProcessor.changePatternTranspose(pattern, 1);
+            audioProcessor.updateAutomationParametersForPattern(pattern);
             repaint();
         };
 
     transposeUpOctaveButton.onClick = [this]()
         {
-            audioProcessor.changePatternTranspose(getDisplayedPattern(), 12);
+            const int pattern = getDisplayedPattern();
+            audioProcessor.changePatternTranspose(pattern, 12);
+            audioProcessor.updateAutomationParametersForPattern(pattern);
             repaint();
         };
 
     rotationDownButton.onClick = [this]()
         {
-            audioProcessor.changePatternRotation(getDisplayedPattern(), -1);
+            const int pattern = getDisplayedPattern();
+            audioProcessor.changePatternRotation(pattern, -1);
+            audioProcessor.updateAutomationParametersForPattern(pattern);
             repaint();
         };
 
     rotationResetButton.onClick = [this]()
         {
-            audioProcessor.resetPatternRotation(getDisplayedPattern());
+            const int pattern = getDisplayedPattern();
+            audioProcessor.resetPatternRotation(pattern);
+            audioProcessor.updateAutomationParametersForPattern(pattern);
             repaint();
         };
 
     rotationUpButton.onClick = [this]()
         {
-            audioProcessor.changePatternRotation(getDisplayedPattern(), 1);
+            const int pattern = getDisplayedPattern();
+            audioProcessor.changePatternRotation(pattern, 1);
+            audioProcessor.updateAutomationParametersForPattern(pattern);
             repaint();
         };
 
     inversionToggleButton.onClick = [this]()
         {
-            audioProcessor.togglePatternInverted(getDisplayedPattern());
+            const int pattern = getDisplayedPattern();
+            audioProcessor.togglePatternInverted(pattern);
+            audioProcessor.updateAutomationParametersForPattern(pattern);
             repaint();
         };
 }
@@ -339,7 +357,7 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.6.0 - State save/restore",
+    g.drawFittedText("v1.7.0 - Host automation / APVTS",
         bounds.removeFromTop(28),
         juce::Justification::centred,
         1);

@@ -39,6 +39,9 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
+    juce::AudioProcessorValueTreeState& getAPVTS();
+    void updateAutomationParametersForPattern(int patternIndex);
+
     int getDisplayActivePattern() const;
     int getDisplayPendingPattern() const;
     int getDisplayCurrentStep() const;
@@ -73,6 +76,10 @@ public:
     int getTransformedStepNote(int patternIndex, int stepIndex) const;
 
 private:
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+
+    juce::AudioProcessorValueTreeState apvts;
+
     struct Step
     {
         int note = -1;
@@ -98,6 +105,9 @@ private:
     void sendAllNotesOffNow(juce::MidiBuffer& midiMessages, int sampleOffset);
     Step getStepForPattern(int patternIndex, int stepIndex) const;
 
+    void syncEngineFromParameters();
+    void syncParametersFromPattern(int patternIndex);
+
     double mySampleRate = 44100.0;
 
     std::array<Pattern, numPatterns> patterns;
@@ -115,6 +125,12 @@ private:
     std::array<bool, numPatterns> patternInverted{ false, false, false };
 
     static constexpr int inversionAxisNote = 60;
+
+    int lastActivePatternParam = 0;
+    int lastTargetPatternParam = 0;
+    int lastTransposeParam = 0;
+    int lastRotationParam = 0;
+    bool lastInversionParam = false;
 
     // Pattern state
     int activePattern = -1;        // -1 = stopped, 0/1/2 = active pattern
