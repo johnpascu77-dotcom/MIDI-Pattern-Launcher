@@ -1,3 +1,17 @@
+v1.6.0 - State Save/Restore
+
+Added:
+- DAW project recall for all pattern step data.
+- Saved/restored per-pattern transpose.
+- Saved/restored per-pattern rotation.
+- Saved/restored per-pattern inversion.
+- Safe project loading: playback remains stopped after restore.
+- MIDI panic cleanup during state restore to avoid hanging notes.
+
+Preserved:
+- Non-destructive transforms.
+- Rotation, transpose, and inversion playback behavior.
+- Existing note-off safety.
 ## v1.5.0 - Pattern Inversion
 
 ### Added
