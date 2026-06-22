@@ -935,6 +935,15 @@ void NewProjectAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
         }
     }
 
+    auto apvtsState = apvts.copyState();
+    std::unique_ptr<juce::XmlElement> apvtsXml(apvtsState.createXml());
+
+    if (apvtsXml != nullptr)
+    {
+        apvtsXml->setTagName("APVTS");
+        root.addChildElement(apvtsXml.release());
+    }
+
     copyXmlToBinary(root, destData);
 }
 
@@ -998,6 +1007,25 @@ void NewProjectAudioProcessor::setStateInformation(const void* data, int sizeInB
             }
         }
     }
+
+    if (auto* apvtsXml = xmlState->getChildByName("APVTS"))
+    {
+        juce::ValueTree apvtsTree = juce::ValueTree::fromXml(*apvtsXml);
+
+        if (apvtsTree.isValid())
+            apvts.replaceState(apvtsTree);
+    }
+
+    lastActivePatternParam = 0;
+    lastTargetPatternParam = 0;
+    lastTransposeParam = 0;
+    lastRotationParam = 0;
+    lastInversionParam = false;
+
+    syncEngineFromParameters();
+
+    activePattern = -1;
+    pendingPattern = -2;
 
     lastPlayedStep = -1;
     lastLaunchBar = -1;
