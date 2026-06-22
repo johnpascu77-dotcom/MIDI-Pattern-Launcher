@@ -778,12 +778,104 @@ juce::AudioProcessorEditor* NewProjectAudioProcessor::createEditor()
 //==============================================================================
 void NewProjectAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    juce::ignoreUnused(destData);
+    juce::XmlElement root("MidiPatternLauncher");
+
+    root.setAttribute("version", "1.6.0");
+
+    for (int patternIndex = 0; patternIndex < numPatterns; ++patternIndex)
+    {
+        auto* patternXml = root.createNewChildElement("Pattern");
+
+        patternXml->setAttribute("index", patternIndex);
+        patternXml->setAttribute("transpose", patternTranspose[static_cast<size_t>(patternIndex)]);
+        patternXml->setAttribute("rotation", patternRotation[static_cast<size_t>(patternIndex)]);
+        patternXml->setAttribute("inverted", patternInverted[static_cast<size_t>(patternIndex)] ? 1 : 0);
+
+        for (int stepIndex = 0; stepIndex < patternLength; ++stepIndex)
+        {
+            const auto& step = patterns[static_cast<size_t>(patternIndex)]
+                [static_cast<size_t>(stepIndex)];
+
+            auto* stepXml = patternXml->createNewChildElement("Step");
+
+            stepXml->setAttribute("index", stepIndex);
+            stepXml->setAttribute("note", step.note);
+            stepXml->setAttribute("velocity", step.velocity);
+            stepXml->setAttribute("durationSteps", step.durationSteps);
+        }
+    }
+
+    copyXmlToBinary(root, destData);
 }
 
 void NewProjectAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
-    juce::ignoreUnused(data, sizeInBytes);
+    auto xmlState = getXmlFromBinary(data, sizeInBytes);
+
+    if (xmlState == nullptr)
+        return;
+
+    if (!xmlState->hasTagName("MidiPatternLauncher"))
+        return;
+
+    juce::MidiBuffer emptyMidiBuffer;
+    sendAllNotesOffNow(emptyMidiBuffer, 0);
+
+    activePattern = -1;
+    pendingPattern = -2;
+
+    for (auto* patternXml : xmlState->getChildWithTagNameIterator("Pattern"))
+    {
+        const int patternIndex = patternXml->getIntAttribute("index", -1);
+
+        if (patternIndex < 0 || patternIndex >= numPatterns)
+            continue;
+
+        patternTranspose[static_cast<size_t>(patternIndex)] =
+            juce::jlimit(-48, 48, patternXml->getIntAttribute("transpose", 0));
+
+        patternRotation[static_cast<size_t>(patternIndex)] =
+            juce::jlimit(0, patternLength - 1, patternXml->getIntAttribute("rotation", 0));
+
+        patternInverted[static_cast<size_t>(patternIndex)] =
+            patternXml->getIntAttribute("inverted", 0) != 0;
+
+        for (auto* stepXml : patternXml->getChildWithTagNameIterator("Step"))
+        {
+            const int stepIndex = stepXml->getIntAttribute("index", -1);
+
+            if (stepIndex < 0 || stepIndex >= patternLength)
+                continue;
+
+            auto& step = patterns[static_cast<size_t>(patternIndex)]
+                [static_cast<size_t>(stepIndex)];
+
+            const int restoredNote = stepXml->getIntAttribute("note", -1);
+            const int restoredVelocity = stepXml->getIntAttribute("velocity", 0);
+            const int restoredDurationSteps = stepXml->getIntAttribute("durationSteps", 0);
+
+            if (restoredNote < 0)
+            {
+                step.note = -1;
+                step.velocity = 0;
+                step.durationSteps = 0;
+            }
+            else
+            {
+                step.note = juce::jlimit(0, 127, restoredNote);
+                step.velocity = juce::jlimit(1, 127, restoredVelocity);
+                step.durationSteps = juce::jlimit(1, patternLength, restoredDurationSteps);
+            }
+        }
+    }
+
+    lastPlayedStep = -1;
+    lastLaunchBar = -1;
+    pendingNoteOffs.clear();
+
+    displayActivePattern.store(activePattern);
+    displayPendingPattern.store(pendingPattern);
+    displayCurrentStep.store(0);
 }
 
 //==============================================================================
@@ -793,3 +885,4 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new NewProjectAudioProcessor();
 }
+

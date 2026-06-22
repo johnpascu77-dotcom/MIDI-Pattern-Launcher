@@ -339,7 +339,7 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.5.0 - Pattern inversion",
+    g.drawFittedText("v1.6.0 - Stete save/restore",
         bounds.removeFromTop(28),
         juce::Justification::centred,
         1);
