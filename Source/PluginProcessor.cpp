@@ -30,30 +30,29 @@ juce::AudioProcessorValueTreeState::ParameterLayout NewProjectAudioProcessor::cr
         juce::StringArray{ "Stopped", "Pattern 1", "Pattern 2", "Pattern 3" },
         0));
 
-    parameters.push_back(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID("targetPatternParam", 1),
-        "Target Pattern",
-        juce::StringArray{ "Pattern 1", "Pattern 2", "Pattern 3" },
-        0));
+    for (int patternIndex = 0; patternIndex < numPatterns; ++patternIndex)
+    {
+        const int patternNumber = patternIndex + 1;
 
-    parameters.push_back(std::make_unique<juce::AudioParameterInt>(
-        juce::ParameterID("transposeParam", 1),
-        "Transpose",
-        -48,
-        48,
-        0));
+        parameters.push_back(std::make_unique<juce::AudioParameterInt>(
+            juce::ParameterID("p" + juce::String(patternNumber) + "TransposeParam", 1),
+            "P" + juce::String(patternNumber) + " Transpose",
+            -48,
+            48,
+            0));
 
-    parameters.push_back(std::make_unique<juce::AudioParameterInt>(
-        juce::ParameterID("rotationParam", 1),
-        "Rotation",
-        0,
-        15,
-        0));
+        parameters.push_back(std::make_unique<juce::AudioParameterInt>(
+            juce::ParameterID("p" + juce::String(patternNumber) + "RotationParam", 1),
+            "P" + juce::String(patternNumber) + " Rotation",
+            0,
+            15,
+            0));
 
-    parameters.push_back(std::make_unique<juce::AudioParameterBool>(
-        juce::ParameterID("inversionParam", 1),
-        "Inversion",
-        false));
+        parameters.push_back(std::make_unique<juce::AudioParameterBool>(
+            juce::ParameterID("p" + juce::String(patternNumber) + "InversionParam", 1),
+            "P" + juce::String(patternNumber) + " Inversion",
+            false));
+    }
 
     return { parameters.begin(), parameters.end() };
 }
@@ -68,6 +67,13 @@ void NewProjectAudioProcessor::updateAutomationParametersForPattern(int patternI
     syncParametersFromPattern(patternIndex);
 }
 
+void NewProjectAudioProcessor::setParameterPlainValueNotifyingHost(const juce::String& parameterID,
+    float plainValue)
+{
+    if (auto* parameter = apvts.getParameter(parameterID))
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(plainValue));
+}
+
 void NewProjectAudioProcessor::syncParametersFromPattern(int patternIndex)
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
@@ -77,46 +83,71 @@ void NewProjectAudioProcessor::syncParametersFromPattern(int patternIndex)
     const int rotation = getPatternRotation(patternIndex);
     const bool inversion = getPatternInverted(patternIndex);
 
-    if (auto* parameter = apvts.getParameter("transposeParam"))
-        parameter->setValueNotifyingHost(parameter->convertTo0to1(static_cast<float>(transpose)));
+    suppressParameterSync.store(true);
 
-    if (auto* parameter = apvts.getParameter("rotationParam"))
-        parameter->setValueNotifyingHost(parameter->convertTo0to1(static_cast<float>(rotation)));
+    setParameterPlainValueNotifyingHost(getTransposeParameterID(patternIndex),
+        static_cast<float>(transpose));
 
-    if (auto* parameter = apvts.getParameter("inversionParam"))
-        parameter->setValueNotifyingHost(inversion ? 1.0f : 0.0f);
+    setParameterPlainValueNotifyingHost(getRotationParameterID(patternIndex),
+        static_cast<float>(rotation));
 
-    lastTransposeParam = transpose;
-    lastRotationParam = rotation;
-    lastInversionParam = inversion;
+    setParameterPlainValueNotifyingHost(getInversionParameterID(patternIndex),
+        inversion ? 1.0f : 0.0f);
+
+    suppressParameterSync.store(false);
+}
+
+int NewProjectAudioProcessor::getChoiceParameterIndex(const juce::String& parameterID) const
+{
+    if (auto* parameter = apvts.getParameter(parameterID))
+    {
+        if (auto* choiceParameter = dynamic_cast<juce::AudioParameterChoice*>(parameter))
+            return choiceParameter->getIndex();
+
+        return juce::roundToInt(parameter->convertFrom0to1(parameter->getValue()));
+    }
+
+    return 0;
+}
+
+int NewProjectAudioProcessor::getIntParameterValue(const juce::String& parameterID) const
+{
+    if (auto* parameter = apvts.getParameter(parameterID))
+    {
+        if (auto* intParameter = dynamic_cast<juce::AudioParameterInt*>(parameter))
+            return intParameter->get();
+
+        return juce::roundToInt(parameter->convertFrom0to1(parameter->getValue()));
+    }
+
+    return 0;
+}
+
+bool NewProjectAudioProcessor::getBoolParameterValue(const juce::String& parameterID) const
+{
+    if (auto* parameter = apvts.getParameter(parameterID))
+    {
+        if (auto* boolParameter = dynamic_cast<juce::AudioParameterBool*>(parameter))
+            return boolParameter->get();
+
+        return parameter->getValue() >= 0.5f;
+    }
+
+    return false;
 }
 
 void NewProjectAudioProcessor::syncEngineFromParameters()
 {
-    auto* activePatternValue = apvts.getRawParameterValue("activePatternParam");
-    auto* targetPatternValue = apvts.getRawParameterValue("targetPatternParam");
-    auto* transposeValue = apvts.getRawParameterValue("transposeParam");
-    auto* rotationValue = apvts.getRawParameterValue("rotationParam");
-    auto* inversionValue = apvts.getRawParameterValue("inversionParam");
-
-    if (activePatternValue == nullptr
-        || targetPatternValue == nullptr
-        || transposeValue == nullptr
-        || rotationValue == nullptr
-        || inversionValue == nullptr)
-    {
+    if (suppressParameterSync.load())
         return;
-    }
 
-    const int activeParam = juce::jlimit(0, numPatterns, static_cast<int>(std::round(activePatternValue->load())));
-    const int targetParam = juce::jlimit(0, numPatterns - 1, static_cast<int>(std::round(targetPatternValue->load())));
-    const int transposeParam = juce::jlimit(-48, 48, static_cast<int>(std::round(transposeValue->load())));
-    const int rotationParam = juce::jlimit(0, patternLength - 1, static_cast<int>(std::round(rotationValue->load())));
-    const bool inversionParam = inversionValue->load() >= 0.5f;
+    const int activeParam = juce::jlimit(0,
+        numPatterns,
+        getChoiceParameterIndex("activePatternParam"));
 
     if (activeParam != lastActivePatternParam)
     {
-        const int requestedPattern = activeParam - 1; // 0 = stopped, 1..3 = pattern 0..2
+        const int requestedPattern = activeParam - 1; // 0 = stopped, 1..3 = patterns 0..2
 
         if (requestedPattern != activePattern)
         {
@@ -127,22 +158,21 @@ void NewProjectAudioProcessor::syncEngineFromParameters()
         lastActivePatternParam = activeParam;
     }
 
-    if (targetParam != lastTargetPatternParam)
+    for (int patternIndex = 0; patternIndex < numPatterns; ++patternIndex)
     {
-        lastTargetPatternParam = targetParam;
-        syncParametersFromPattern(targetParam);
-        return;
-    }
+        const int transposeParam = juce::jlimit(-48,
+            48,
+            getIntParameterValue(getTransposeParameterID(patternIndex)));
 
-    if (targetParam >= 0 && targetParam < numPatterns)
-    {
-        patternTranspose[static_cast<size_t>(targetParam)] = transposeParam;
-        patternRotation[static_cast<size_t>(targetParam)] = rotationParam;
-        patternInverted[static_cast<size_t>(targetParam)] = inversionParam;
+        const int rotationParam = juce::jlimit(0,
+            patternLength - 1,
+            getIntParameterValue(getRotationParameterID(patternIndex)));
 
-        lastTransposeParam = transposeParam;
-        lastRotationParam = rotationParam;
-        lastInversionParam = inversionParam;
+        const bool inversionParam = getBoolParameterValue(getInversionParameterID(patternIndex));
+
+        patternTranspose[static_cast<size_t>(patternIndex)] = transposeParam;
+        patternRotation[static_cast<size_t>(patternIndex)] = rotationParam;
+        patternInverted[static_cast<size_t>(patternIndex)] = inversionParam;
     }
 }
 //==============================================================================
@@ -576,6 +606,21 @@ double NewProjectAudioProcessor::getTailLengthSeconds() const
     return 0.0;
 }
 
+juce::String NewProjectAudioProcessor::getTransposeParameterID(int patternIndex) const
+{
+    return "p" + juce::String(patternIndex + 1) + "TransposeParam";
+}
+
+juce::String NewProjectAudioProcessor::getRotationParameterID(int patternIndex) const
+{
+    return "p" + juce::String(patternIndex + 1) + "RotationParam";
+}
+
+juce::String NewProjectAudioProcessor::getInversionParameterID(int patternIndex) const
+{
+    return "p" + juce::String(patternIndex + 1) + "InversionParam";
+}
+
 int NewProjectAudioProcessor::getNumPrograms()
 {
     return 1;
@@ -910,7 +955,7 @@ void NewProjectAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     juce::XmlElement root("MidiPatternLauncher");
 
-    root.setAttribute("version", "1.7.0");
+    root.setAttribute("version", "1.8.0");
 
     for (int patternIndex = 0; patternIndex < numPatterns; ++patternIndex)
     {
@@ -1010,30 +1055,24 @@ void NewProjectAudioProcessor::setStateInformation(const void* data, int sizeInB
 
     if (auto* apvtsXml = xmlState->getChildByName("APVTS"))
     {
-        juce::ValueTree apvtsTree = juce::ValueTree::fromXml(*apvtsXml);
+        auto apvtsState = juce::ValueTree::fromXml(*apvtsXml);
 
-        if (apvtsTree.isValid())
-            apvts.replaceState(apvtsTree);
+        if (apvtsState.isValid())
+            apvts.replaceState(apvtsState);
     }
-
-    lastActivePatternParam = 0;
-    lastTargetPatternParam = 0;
-    lastTransposeParam = 0;
-    lastRotationParam = 0;
-    lastInversionParam = false;
-
-    syncEngineFromParameters();
 
     activePattern = -1;
     pendingPattern = -2;
 
-    lastPlayedStep = -1;
-    lastLaunchBar = -1;
-    pendingNoteOffs.clear();
-
-    displayActivePattern.store(activePattern);
-    displayPendingPattern.store(pendingPattern);
+    displayActivePattern.store(-1);
+    displayPendingPattern.store(-2);
     displayCurrentStep.store(0);
+    displayCurrentBar.store(0);
+
+    for (int patternIndex = 0; patternIndex < numPatterns; ++patternIndex)
+        syncParametersFromPattern(patternIndex);
+
+    lastActivePatternParam = getChoiceParameterIndex("activePatternParam");
 }
 
 //==============================================================================
