@@ -1,3 +1,26 @@
+# MIDI Pattern Launcher v1.8.0
+
+## Added
+- Explicit per-pattern automation parameters:
+  - P1/P2/P3 Transpose
+  - P1/P2/P3 Rotation
+  - P1/P2/P3 Inversion
+
+## Changed
+- Replaced shared Target Pattern transform automation model.
+- Transform automation now maps directly to each pattern's internal state.
+- UI edit pattern selection is independent from playback/automation state.
+
+## Fixed
+- Multi-lane automation ambiguity where shared transform parameters could write to the wrong pattern.
+- Fragile interaction between UI pattern selection and DAW automation target selection.
+- Improved stability under simultaneous modulation of multiple pattern transforms.
+
+## Verified
+- Heavy Bitwig Random modulation across all exposed parameters.
+- Multiple duplicated plugin tracks.
+- Summed output recording.
+- No stuck notes observed.
 v1.6.0 - State Save/Restore
 
 Added:
