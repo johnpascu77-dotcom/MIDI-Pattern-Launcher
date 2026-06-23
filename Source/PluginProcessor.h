@@ -126,11 +126,19 @@ private:
 
     static constexpr int inversionAxisNote = 60;
 
+    int getChoiceParameterIndex(const juce::String& parameterID) const;
+    int getIntParameterValue(const juce::String& parameterID) const;
+    bool getBoolParameterValue(const juce::String& parameterID) const;
+
+    void setParameterPlainValueNotifyingHost(const juce::String& parameterID, float plainValue);
+
+    std::atomic<bool> suppressParameterSync{ false };
+
+    juce::String getTransposeParameterID(int patternIndex) const;
+    juce::String getRotationParameterID(int patternIndex) const;
+    juce::String getInversionParameterID(int patternIndex) const;
+
     int lastActivePatternParam = 0;
-    int lastTargetPatternParam = 0;
-    int lastTransposeParam = 0;
-    int lastRotationParam = 0;
-    bool lastInversionParam = false;
 
     // Pattern state
     int activePattern = -1;        // -1 = stopped, 0/1/2 = active pattern

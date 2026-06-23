@@ -53,14 +53,14 @@ void NewProjectAudioProcessorEditor::setupButtonCallbacks()
 
     editPattern2Button.onClick = [this]()
         {
-            selectedEditPattern = 1;
+            selectedEditPattern = 0;
             updateEditPatternButtonHighlights();
             repaint();
         };
 
     editPattern3Button.onClick = [this]()
         {
-            selectedEditPattern = 2;
+            selectedEditPattern = 0;
             updateEditPatternButtonHighlights();
             repaint();
         };
@@ -357,7 +357,7 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.7.0 - Host automation / APVTS",
+    g.drawFittedText("v1.8.0 - Per-pattern automation",
         bounds.removeFromTop(28),
         juce::Justification::centred,
         1);
