@@ -40,6 +40,11 @@ private:
     juce::TextButton editPattern2Button{ "Edit P2" };
     juce::TextButton editPattern3Button{ "Edit P3" };
 
+    juce::TextButton copyToP1Button{ "Copy > P1" };
+    juce::TextButton copyToP2Button{ "Copy > P2" };
+    juce::TextButton copyToP3Button{ "Copy > P3" };
+    juce::TextButton clearPatternButton{ "Clear Pattern" };
+
     juce::TextButton noteDownButton{ "Note -" };
     juce::TextButton noteUpButton{ "Note +" };
     juce::TextButton velocityDownButton{ "Vel -" };
