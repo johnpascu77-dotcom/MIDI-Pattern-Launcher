@@ -5,7 +5,7 @@ NewProjectAudioProcessorEditor::NewProjectAudioProcessorEditor(NewProjectAudioPr
     : AudioProcessorEditor(&p),
     audioProcessor(p)
 {
-    setSize(720, 710);
+    setSize(720, 820);
 
     addAndMakeVisible(editPattern1Button);
     addAndMakeVisible(editPattern2Button);
@@ -36,6 +36,76 @@ NewProjectAudioProcessorEditor::NewProjectAudioProcessorEditor(NewProjectAudioPr
     addAndMakeVisible(rotationUpButton);
     addAndMakeVisible(inversionToggleButton);
 
+    auto setupLabel = [](juce::Label& label, const juce::String& text)
+        {
+            label.setText(text, juce::dontSendNotification);
+            label.setColour(juce::Label::textColourId, juce::Colours::white);
+            label.setJustificationType(juce::Justification::centredLeft);
+        };
+
+    setupLabel(targetTitleLabel, "Host Target Step Parameters");
+    setupLabel(targetPatternLabel, "Pattern");
+    setupLabel(targetStepLabel, "Step");
+    setupLabel(targetNoteLabel, "Note");
+    setupLabel(targetVelocityLabel, "Velocity");
+    setupLabel(targetDurationLabel, "Duration");
+    setupLabel(targetEnabledLabel, "Enabled");
+
+    addAndMakeVisible(targetTitleLabel);
+    addAndMakeVisible(targetPatternLabel);
+    addAndMakeVisible(targetStepLabel);
+    addAndMakeVisible(targetNoteLabel);
+    addAndMakeVisible(targetVelocityLabel);
+    addAndMakeVisible(targetDurationLabel);
+    addAndMakeVisible(targetEnabledLabel);
+
+    targetPatternBox.addItem("Pattern 1", 1);
+    targetPatternBox.addItem("Pattern 2", 2);
+    targetPatternBox.addItem("Pattern 3", 3);
+
+    auto setupSlider = [](juce::Slider& slider)
+        {
+            slider.setSliderStyle(juce::Slider::IncDecButtons);
+            slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 56, 22);
+            slider.setColour(juce::Slider::textBoxTextColourId, juce::Colours::white);
+            slider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff1f2d32));
+            slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0xff5aa6b8));
+        };
+
+    setupSlider(targetStepSlider);
+    setupSlider(targetNoteSlider);
+    setupSlider(targetVelocitySlider);
+    setupSlider(targetDurationSlider);
+
+    addAndMakeVisible(targetPatternBox);
+    addAndMakeVisible(targetStepSlider);
+    addAndMakeVisible(targetNoteSlider);
+    addAndMakeVisible(targetVelocitySlider);
+    addAndMakeVisible(targetDurationSlider);
+    addAndMakeVisible(targetEnabledButton);
+
+    auto& apvts = audioProcessor.getAPVTS();
+
+    targetPatternAttachment = std::make_unique<ComboBoxAttachment>(
+        apvts, "targetPatternParam", targetPatternBox);
+
+    targetStepAttachment = std::make_unique<SliderAttachment>(
+        apvts, "targetStepParam", targetStepSlider);
+
+    targetNoteAttachment = std::make_unique<SliderAttachment>(
+        apvts, "targetNoteParam", targetNoteSlider);
+
+    targetVelocityAttachment = std::make_unique<SliderAttachment>(
+        apvts, "targetVelocityParam", targetVelocitySlider);
+
+    targetDurationAttachment = std::make_unique<SliderAttachment>(
+        apvts, "targetDurationParam", targetDurationSlider);
+
+    targetEnabledAttachment = std::make_unique<ButtonAttachment>(
+        apvts, "targetEnabledParam", targetEnabledButton);
+
+    audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+
     setupButtonCallbacks();
     updateEditPatternButtonHighlights();
 
@@ -52,13 +122,14 @@ void NewProjectAudioProcessorEditor::setupButtonCallbacks()
     editPattern1Button.onClick = [this]()
         {
             selectedEditPattern = 0;
+            audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
             updateEditPatternButtonHighlights();
             repaint();
         };
-
     editPattern2Button.onClick = [this]()
         {
             selectedEditPattern = 1;
+            audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
             updateEditPatternButtonHighlights();
             repaint();
         };
@@ -66,6 +137,7 @@ void NewProjectAudioProcessorEditor::setupButtonCallbacks()
     editPattern3Button.onClick = [this]()
         {
             selectedEditPattern = 2;
+            audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
             updateEditPatternButtonHighlights();
             repaint();
         };
@@ -75,6 +147,7 @@ void NewProjectAudioProcessorEditor::setupButtonCallbacks()
             const int sourcePattern = getDisplayedPattern();
             audioProcessor.copyPattern(sourcePattern, 0);
             selectedEditPattern = 0;
+            audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
             updateEditPatternButtonHighlights();
             repaint();
         };
@@ -84,6 +157,7 @@ void NewProjectAudioProcessorEditor::setupButtonCallbacks()
             const int sourcePattern = getDisplayedPattern();
             audioProcessor.copyPattern(sourcePattern, 1);
             selectedEditPattern = 1;
+            audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
             updateEditPatternButtonHighlights();
             repaint();
         };
@@ -93,6 +167,7 @@ void NewProjectAudioProcessorEditor::setupButtonCallbacks()
             const int sourcePattern = getDisplayedPattern();
             audioProcessor.copyPattern(sourcePattern, 2);
             selectedEditPattern = 2;
+            audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
             updateEditPatternButtonHighlights();
             repaint();
         };
@@ -358,6 +433,7 @@ void NewProjectAudioProcessorEditor::updateSelectedStepFromMousePosition(juce::P
         if (getStepBox(i).contains(position))
         {
             selectedStep = i;
+            audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
             repaint();
             return;
         }
@@ -397,7 +473,7 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.9.0 - Pattern tools",
+    g.drawFittedText("v1.10.0 - Target step parameters",
         bounds.removeFromTop(28),
         juce::Justification::centred,
         1);
@@ -715,4 +791,43 @@ void NewProjectAudioProcessorEditor::resized()
     transformRow.removeFromLeft(transformSectionGap);
 
     inversionToggleButton.setBounds(transformRow.removeFromLeft(transformButtonWidth));
+
+    bounds.removeFromTop(18);
+
+    auto targetTitleRow = bounds.removeFromTop(24);
+    targetTitleLabel.setBounds(targetTitleRow);
+
+    bounds.removeFromTop(6);
+
+    auto targetRow1 = bounds.removeFromTop(34);
+
+    const int targetGap = 8;
+    const int targetLabelWidth = 62;
+    const int targetControlWidth = 130;
+
+    targetPatternLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));
+    targetPatternBox.setBounds(targetRow1.removeFromLeft(targetControlWidth));
+    targetRow1.removeFromLeft(targetGap);
+
+    targetStepLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));
+    targetStepSlider.setBounds(targetRow1.removeFromLeft(targetControlWidth));
+    targetRow1.removeFromLeft(targetGap);
+
+    targetEnabledLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));
+    targetEnabledButton.setBounds(targetRow1.removeFromLeft(targetControlWidth));
+
+    bounds.removeFromTop(8);
+
+    auto targetRow2 = bounds.removeFromTop(34);
+
+    targetNoteLabel.setBounds(targetRow2.removeFromLeft(targetLabelWidth));
+    targetNoteSlider.setBounds(targetRow2.removeFromLeft(targetControlWidth));
+    targetRow2.removeFromLeft(targetGap);
+
+    targetVelocityLabel.setBounds(targetRow2.removeFromLeft(targetLabelWidth));
+    targetVelocitySlider.setBounds(targetRow2.removeFromLeft(targetControlWidth));
+    targetRow2.removeFromLeft(targetGap);
+
+    targetDurationLabel.setBounds(targetRow2.removeFromLeft(targetLabelWidth));
+    targetDurationSlider.setBounds(targetRow2.removeFromLeft(targetControlWidth));
 }

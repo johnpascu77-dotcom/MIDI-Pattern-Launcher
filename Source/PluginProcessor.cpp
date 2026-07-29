@@ -30,6 +30,45 @@ juce::AudioProcessorValueTreeState::ParameterLayout NewProjectAudioProcessor::cr
         juce::StringArray{ "Stopped", "Pattern 1", "Pattern 2", "Pattern 3" },
         0));
 
+    parameters.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("targetPatternParam", 1),
+        "Target Pattern",
+        juce::StringArray{ "Pattern 1", "Pattern 2", "Pattern 3" },
+        0));
+
+    parameters.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID("targetStepParam", 1),
+        "Target Step",
+        1,
+        patternLength,
+        1));
+
+    parameters.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID("targetNoteParam", 1),
+        "Target Note",
+        0,
+        127,
+        60));
+
+    parameters.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID("targetVelocityParam", 1),
+        "Target Velocity",
+        1,
+        127,
+        100));
+
+    parameters.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID("targetDurationParam", 1),
+        "Target Duration",
+        1,
+        patternLength,
+        1));
+
+    parameters.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("targetEnabledParam", 1),
+        "Target Enabled",
+        false));
+
     for (int patternIndex = 0; patternIndex < numPatterns; ++patternIndex)
     {
         const int patternNumber = patternIndex + 1;
@@ -72,6 +111,116 @@ void NewProjectAudioProcessor::setParameterPlainValueNotifyingHost(const juce::S
 {
     if (auto* parameter = apvts.getParameter(parameterID))
         parameter->setValueNotifyingHost(parameter->convertTo0to1(plainValue));
+}
+
+int NewProjectAudioProcessor::getTargetPatternIndex() const
+{
+    return juce::jlimit(0, numPatterns - 1, getChoiceParameterIndex("targetPatternParam"));
+}
+
+int NewProjectAudioProcessor::getTargetStepIndex() const
+{
+    return juce::jlimit(0, patternLength - 1, getIntParameterValue("targetStepParam") - 1);
+}
+
+int NewProjectAudioProcessor::getTargetNote() const
+{
+    return juce::jlimit(0, 127, getIntParameterValue("targetNoteParam"));
+}
+
+int NewProjectAudioProcessor::getTargetVelocity() const
+{
+    return juce::jlimit(1, 127, getIntParameterValue("targetVelocityParam"));
+}
+
+int NewProjectAudioProcessor::getTargetDurationSteps() const
+{
+    return juce::jlimit(1, patternLength, getIntParameterValue("targetDurationParam"));
+}
+
+bool NewProjectAudioProcessor::getTargetEnabled() const
+{
+    return getBoolParameterValue("targetEnabledParam");
+}
+
+void NewProjectAudioProcessor::setTargetPatternAndStep(int patternIndex, int stepIndex)
+{
+    patternIndex = juce::jlimit(0, numPatterns - 1, patternIndex);
+    stepIndex = juce::jlimit(0, patternLength - 1, stepIndex);
+
+    suppressParameterSync.store(true);
+
+    setParameterPlainValueNotifyingHost("targetPatternParam", static_cast<float>(patternIndex));
+    setParameterPlainValueNotifyingHost("targetStepParam", static_cast<float>(stepIndex + 1));
+
+    suppressParameterSync.store(false);
+
+    lastTargetPatternParam = patternIndex;
+    lastTargetStepParam = stepIndex + 1;
+
+    updateTargetParametersFromStep();
+}
+
+void NewProjectAudioProcessor::updateTargetParametersFromStep()
+{
+    syncTargetParametersFromStep();
+}
+
+void NewProjectAudioProcessor::applyTargetParametersToStep()
+{
+    syncTargetStepFromParameters();
+}
+
+void NewProjectAudioProcessor::syncTargetParametersFromStep()
+{
+    const int patternIndex = getTargetPatternIndex();
+    const int stepIndex = getTargetStepIndex();
+
+    const Step step = getStepForPattern(patternIndex, stepIndex);
+
+    const bool enabled = step.note >= 0 && step.velocity > 0 && step.durationSteps > 0;
+    const int note = enabled ? juce::jlimit(0, 127, step.note) : lastTargetNoteParam;
+    const int velocity = enabled ? juce::jlimit(1, 127, step.velocity) : lastTargetVelocityParam;
+    const int duration = enabled ? juce::jlimit(1, patternLength, step.durationSteps) : lastTargetDurationParam;
+
+    suppressParameterSync.store(true);
+
+    setParameterPlainValueNotifyingHost("targetNoteParam", static_cast<float>(note));
+    setParameterPlainValueNotifyingHost("targetVelocityParam", static_cast<float>(velocity));
+    setParameterPlainValueNotifyingHost("targetDurationParam", static_cast<float>(duration));
+    setParameterPlainValueNotifyingHost("targetEnabledParam", enabled ? 1.0f : 0.0f);
+
+    suppressParameterSync.store(false);
+
+    lastTargetPatternParam = patternIndex;
+    lastTargetStepParam = stepIndex + 1;
+    lastTargetNoteParam = note;
+    lastTargetVelocityParam = velocity;
+    lastTargetDurationParam = duration;
+    lastTargetEnabledParam = enabled;
+}
+
+void NewProjectAudioProcessor::syncTargetStepFromParameters()
+{
+    const int patternIndex = getTargetPatternIndex();
+    const int stepIndex = getTargetStepIndex();
+
+    const int note = getTargetNote();
+    const int velocity = getTargetVelocity();
+    const int duration = getTargetDurationSteps();
+    const bool enabled = getTargetEnabled();
+
+    if (enabled)
+        setStepValues(patternIndex, stepIndex, note, velocity, duration);
+    else
+        setStepValues(patternIndex, stepIndex, -1, 0, 0);
+
+    lastTargetPatternParam = patternIndex;
+    lastTargetStepParam = stepIndex + 1;
+    lastTargetNoteParam = note;
+    lastTargetVelocityParam = velocity;
+    lastTargetDurationParam = duration;
+    lastTargetEnabledParam = enabled;
 }
 
 void NewProjectAudioProcessor::syncParametersFromPattern(int patternIndex)
@@ -174,7 +323,49 @@ void NewProjectAudioProcessor::syncEngineFromParameters()
         patternRotation[static_cast<size_t>(patternIndex)] = rotationParam;
         patternInverted[static_cast<size_t>(patternIndex)] = inversionParam;
     }
+
+    const int targetPatternParam = juce::jlimit(0,
+        numPatterns - 1,
+        getChoiceParameterIndex("targetPatternParam"));
+
+    const int targetStepParam = juce::jlimit(1,
+        patternLength,
+        getIntParameterValue("targetStepParam"));
+
+    const int targetNoteParam = juce::jlimit(0,
+        127,
+        getIntParameterValue("targetNoteParam"));
+
+    const int targetVelocityParam = juce::jlimit(1,
+        127,
+        getIntParameterValue("targetVelocityParam"));
+
+    const int targetDurationParam = juce::jlimit(1,
+        patternLength,
+        getIntParameterValue("targetDurationParam"));
+
+    const bool targetEnabledParam = getBoolParameterValue("targetEnabledParam");
+
+    const bool targetSelectionChanged =
+        targetPatternParam != lastTargetPatternParam
+        || targetStepParam != lastTargetStepParam;
+
+    const bool targetValuesChanged =
+        targetNoteParam != lastTargetNoteParam
+        || targetVelocityParam != lastTargetVelocityParam
+        || targetDurationParam != lastTargetDurationParam
+        || targetEnabledParam != lastTargetEnabledParam;
+
+    if (targetSelectionChanged)
+    {
+        syncTargetParametersFromStep();
+    }
+    else if (targetValuesChanged)
+    {
+        syncTargetStepFromParameters();
+    }
 }
+
 //==============================================================================
 void NewProjectAudioProcessor::initialisePatterns()
 {
@@ -332,12 +523,19 @@ void NewProjectAudioProcessor::setStepValues(int patternIndex,
         step.note = -1;
         step.velocity = 0;
         step.durationSteps = 0;
+
+        if (patternIndex == getTargetPatternIndex() && stepIndex == getTargetStepIndex())
+            updateTargetParametersFromStep();
+
         return;
     }
 
     step.note = juce::jlimit(0, 127, note);
     step.velocity = juce::jlimit(1, 127, velocity);
-    step.durationSteps = juce::jlimit(1, 16, durationSteps);
+    step.durationSteps = juce::jlimit(1, patternLength, durationSteps);
+
+    if (patternIndex == getTargetPatternIndex() && stepIndex == getTargetStepIndex())
+        updateTargetParametersFromStep();
 }
 
 void NewProjectAudioProcessor::clearStep(int patternIndex, int stepIndex)
@@ -998,7 +1196,7 @@ void NewProjectAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     juce::XmlElement root("MidiPatternLauncher");
 
-    root.setAttribute("version", "1.9.0");
+    root.setAttribute("version", "1.10.0");
 
     for (int patternIndex = 0; patternIndex < numPatterns; ++patternIndex)
     {
@@ -1116,6 +1314,15 @@ void NewProjectAudioProcessor::setStateInformation(const void* data, int sizeInB
         syncParametersFromPattern(patternIndex);
 
     lastActivePatternParam = getChoiceParameterIndex("activePatternParam");
+
+    lastTargetPatternParam = getTargetPatternIndex();
+    lastTargetStepParam = getTargetStepIndex() + 1;
+    lastTargetNoteParam = getTargetNote();
+    lastTargetVelocityParam = getTargetVelocity();
+    lastTargetDurationParam = getTargetDurationSteps();
+    lastTargetEnabledParam = getTargetEnabled();
+
+    syncTargetParametersFromStep();
 }
 
 //==============================================================================

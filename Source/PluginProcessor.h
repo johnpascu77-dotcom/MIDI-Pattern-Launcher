@@ -61,6 +61,17 @@ public:
     void copyPattern(int sourcePatternIndex, int destinationPatternIndex);
     void clearPattern(int patternIndex);
 
+    int getTargetPatternIndex() const;
+    int getTargetStepIndex() const;
+    int getTargetNote() const;
+    int getTargetVelocity() const;
+    int getTargetDurationSteps() const;
+    bool getTargetEnabled() const;
+
+    void setTargetPatternAndStep(int patternIndex, int stepIndex);
+    void updateTargetParametersFromStep();
+    void applyTargetParametersToStep();
+
     int getPatternTranspose(int patternIndex) const;
     void changePatternTranspose(int patternIndex, int deltaSemitones);
     void resetPatternTranspose(int patternIndex);
@@ -110,6 +121,9 @@ private:
     void syncEngineFromParameters();
     void syncParametersFromPattern(int patternIndex);
 
+    void syncTargetParametersFromStep();
+    void syncTargetStepFromParameters();
+
     double mySampleRate = 44100.0;
 
     std::array<Pattern, numPatterns> patterns;
@@ -141,6 +155,13 @@ private:
     juce::String getInversionParameterID(int patternIndex) const;
 
     int lastActivePatternParam = 0;
+
+    int lastTargetPatternParam = 0;
+    int lastTargetStepParam = 0;
+    int lastTargetNoteParam = 60;
+    int lastTargetVelocityParam = 100;
+    int lastTargetDurationParam = 1;
+    bool lastTargetEnabledParam = false;
 
     // Pattern state
     int activePattern = -1;        // -1 = stopped, 0/1/2 = active pattern

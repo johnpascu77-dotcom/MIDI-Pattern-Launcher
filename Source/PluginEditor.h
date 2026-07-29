@@ -31,6 +31,10 @@ private:
     void setupButtonCallbacks();
     void updateEditPatternButtonHighlights();
 
+    using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
+    using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
+    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
+
     NewProjectAudioProcessor& audioProcessor;
 
     int selectedStep = 0;
@@ -64,6 +68,28 @@ private:
     juce::TextButton rotationResetButton{ "Rot 0" };
     juce::TextButton rotationUpButton{ "Rot +" };
     juce::TextButton inversionToggleButton{ "Inv Off" };
+
+    juce::Label targetTitleLabel;
+    juce::Label targetPatternLabel;
+    juce::Label targetStepLabel;
+    juce::Label targetNoteLabel;
+    juce::Label targetVelocityLabel;
+    juce::Label targetDurationLabel;
+    juce::Label targetEnabledLabel;
+
+    juce::ComboBox targetPatternBox;
+    juce::Slider targetStepSlider;
+    juce::Slider targetNoteSlider;
+    juce::Slider targetVelocitySlider;
+    juce::Slider targetDurationSlider;
+    juce::ToggleButton targetEnabledButton{ "Enabled" };
+
+    std::unique_ptr<ComboBoxAttachment> targetPatternAttachment;
+    std::unique_ptr<SliderAttachment> targetStepAttachment;
+    std::unique_ptr<SliderAttachment> targetNoteAttachment;
+    std::unique_ptr<SliderAttachment> targetVelocityAttachment;
+    std::unique_ptr<SliderAttachment> targetDurationAttachment;
+    std::unique_ptr<ButtonAttachment> targetEnabledAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NewProjectAudioProcessorEditor)
 };
