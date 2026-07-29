@@ -2,7 +2,8 @@
 
 <JUCERPROJECT id="Ny6juh" name="MidiPatternLauncherPlugin" projectType="audioplug"
               useAppConfig="0" addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1"
-              pluginFormats="buildStandalone,buildVST3" pluginCharacteristicsValue="pluginIsMidiEffectPlugin,pluginProducesMidiOut,pluginWantsMidiIn">
+              pluginFormats="buildStandalone,buildVST3" pluginCharacteristicsValue="pluginIsMidiEffectPlugin,pluginProducesMidiOut,pluginWantsMidiIn"
+              pluginName="MidiPatternLauncherPlugin V112 TEST" pluginDesc="MidiPatternLauncherPlugin V112 TEST">
   <MAINGROUP id="DIG8pf" name="MidiPatternLauncherPlugin">
     <GROUP id="{A3735574-2372-2F05-0FFD-DFE10B783D76}" name="Source">
       <FILE id="DOdZja" name="PluginProcessor.cpp" compile="1" resource="0"

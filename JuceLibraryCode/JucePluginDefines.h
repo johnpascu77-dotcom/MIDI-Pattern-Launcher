@@ -41,10 +41,10 @@
  #define JucePlugin_Enable_ARA             0
 #endif
 #ifndef  JucePlugin_Name
- #define JucePlugin_Name                   "MidiPatternLauncherPlugin"
+ #define JucePlugin_Name                   "MidiPatternLauncherPlugin V112 TEST"
 #endif
 #ifndef  JucePlugin_Desc
- #define JucePlugin_Desc                   "MidiPatternLauncherPlugin"
+ #define JucePlugin_Desc                   "MidiPatternLauncherPlugin V112 TEST"
 #endif
 #ifndef  JucePlugin_Manufacturer
  #define JucePlugin_Manufacturer           "yourcompany"
@@ -137,7 +137,7 @@
  #define JucePlugin_IAASubType             JucePlugin_PluginCode
 #endif
 #ifndef  JucePlugin_IAAName
- #define JucePlugin_IAAName                "yourcompany: MidiPatternLauncherPlugin"
+ #define JucePlugin_IAAName                "yourcompany: MidiPatternLauncherPlugin V112 TEST"
 #endif
 #ifndef  JucePlugin_VSTNumMidiInputs
  #define JucePlugin_VSTNumMidiInputs       16

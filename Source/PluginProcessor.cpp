@@ -84,8 +84,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout NewProjectAudioProcessor::cr
             juce::ParameterID("p" + juce::String(patternNumber) + "RotationParam", 1),
             "P" + juce::String(patternNumber) + " Rotation",
             0,
-            15,
+            patternLength - 1,
             0));
+
+        parameters.push_back(std::make_unique<juce::AudioParameterInt>(
+            juce::ParameterID("p" + juce::String(patternNumber) + "LengthParam", 1),
+            "P" + juce::String(patternNumber) + " Length",
+            minPatternLoopLength,
+            patternLength,
+            defaultPatternLoopLength));
 
         parameters.push_back(std::make_unique<juce::AudioParameterBool>(
             juce::ParameterID("p" + juce::String(patternNumber) + "InversionParam", 1),
@@ -230,6 +237,7 @@ void NewProjectAudioProcessor::syncParametersFromPattern(int patternIndex)
 
     const int transpose = getPatternTranspose(patternIndex);
     const int rotation = getPatternRotation(patternIndex);
+    const int length = getPatternLoopLength(patternIndex);
     const bool inversion = getPatternInverted(patternIndex);
 
     suppressParameterSync.store(true);
@@ -239,6 +247,9 @@ void NewProjectAudioProcessor::syncParametersFromPattern(int patternIndex)
 
     setParameterPlainValueNotifyingHost(getRotationParameterID(patternIndex),
         static_cast<float>(rotation));
+
+    setParameterPlainValueNotifyingHost(getLengthParameterID(patternIndex),
+        static_cast<float>(length));
 
     setParameterPlainValueNotifyingHost(getInversionParameterID(patternIndex),
         inversion ? 1.0f : 0.0f);
@@ -317,10 +328,15 @@ void NewProjectAudioProcessor::syncEngineFromParameters()
             patternLength - 1,
             getIntParameterValue(getRotationParameterID(patternIndex)));
 
+        const int lengthParam = juce::jlimit(minPatternLoopLength,
+            patternLength,
+            getIntParameterValue(getLengthParameterID(patternIndex)));
+
         const bool inversionParam = getBoolParameterValue(getInversionParameterID(patternIndex));
 
         patternTranspose[static_cast<size_t>(patternIndex)] = transposeParam;
         patternRotation[static_cast<size_t>(patternIndex)] = rotationParam;
+        patternLoopLength[static_cast<size_t>(patternIndex)] = lengthParam;
         patternInverted[static_cast<size_t>(patternIndex)] = inversionParam;
     }
 
@@ -443,6 +459,11 @@ void NewProjectAudioProcessor::initialisePatterns()
 
     patternTranspose = { 0, 0, 0 };
     patternRotation = { 0, 0, 0 };
+    patternLoopLength = {
+        defaultPatternLoopLength,
+        defaultPatternLoopLength,
+        defaultPatternLoopLength
+    };
     patternInverted = { false, false, false };
 }
 
@@ -622,6 +643,9 @@ void NewProjectAudioProcessor::copyPattern(int sourcePatternIndex, int destinati
     patternRotation[static_cast<size_t>(destinationPatternIndex)] =
         patternRotation[static_cast<size_t>(sourcePatternIndex)];
 
+    patternLoopLength[static_cast<size_t>(destinationPatternIndex)] =
+        patternLoopLength[static_cast<size_t>(sourcePatternIndex)];
+
     patternInverted[static_cast<size_t>(destinationPatternIndex)] =
         patternInverted[static_cast<size_t>(sourcePatternIndex)];
 
@@ -640,6 +664,7 @@ void NewProjectAudioProcessor::clearPattern(int patternIndex)
 
     patternTranspose[static_cast<size_t>(patternIndex)] = 0;
     patternRotation[static_cast<size_t>(patternIndex)] = 0;
+    patternLoopLength[static_cast<size_t>(patternIndex)] = defaultPatternLoopLength;
     patternInverted[static_cast<size_t>(patternIndex)] = false;
 
     updateAutomationParametersForPattern(patternIndex);
@@ -804,9 +829,41 @@ void NewProjectAudioProcessor::resetPatternRotation(int patternIndex)
 int NewProjectAudioProcessor::getRotatedSourceStepIndex(int patternIndex,
     int playbackStepIndex) const
 {
+    const int loopLength = getPatternLoopLength(patternIndex);
     const int rotation = getPatternRotation(patternIndex);
+    const int effectiveRotation = ((rotation % loopLength) + loopLength) % loopLength;
 
-    return ((playbackStepIndex - rotation) % patternLength + patternLength) % patternLength;
+    return ((playbackStepIndex - effectiveRotation) % loopLength + loopLength) % loopLength;
+}
+
+int NewProjectAudioProcessor::getPatternLoopLength(int patternIndex) const
+{
+    if (patternIndex < 0 || patternIndex >= numPatterns)
+        return defaultPatternLoopLength;
+
+    return juce::jlimit(minPatternLoopLength,
+        patternLength,
+        patternLoopLength[static_cast<size_t>(patternIndex)]);
+}
+
+void NewProjectAudioProcessor::setPatternLoopLength(int patternIndex, int length)
+{
+    if (patternIndex < 0 || patternIndex >= numPatterns)
+        return;
+
+    patternLoopLength[static_cast<size_t>(patternIndex)] =
+        juce::jlimit(minPatternLoopLength, patternLength, length);
+
+    updateAutomationParametersForPattern(patternIndex);
+}
+
+void NewProjectAudioProcessor::changePatternLoopLength(int patternIndex, int deltaSteps)
+{
+    if (patternIndex < 0 || patternIndex >= numPatterns)
+        return;
+
+    setPatternLoopLength(patternIndex,
+        getPatternLoopLength(patternIndex) + deltaSteps);
 }
 
 //==============================================================================
@@ -855,6 +912,11 @@ juce::String NewProjectAudioProcessor::getTransposeParameterID(int patternIndex)
 juce::String NewProjectAudioProcessor::getRotationParameterID(int patternIndex) const
 {
     return "p" + juce::String(patternIndex + 1) + "RotationParam";
+}
+
+juce::String NewProjectAudioProcessor::getLengthParameterID(int patternIndex) const
+{
+    return "p" + juce::String(patternIndex + 1) + "LengthParam";
 }
 
 juce::String NewProjectAudioProcessor::getInversionParameterID(int patternIndex) const
@@ -1072,11 +1134,9 @@ void NewProjectAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         sampleOffset = juce::jlimit(0, numSamples - 1, sampleOffset);
 
         const int currentBar = step / stepsPerBar;
-        const int displayStep = (step % stepsPerBar) + 1;
         const bool isAtBarStart = (step % stepsPerBar) == 0;
 
         displayCurrentBar.store(currentBar + 1);
-        displayCurrentStep.store(displayStep);
         displayActivePattern.store(activePattern);
         displayPendingPattern.store(pendingPattern);
 
@@ -1144,11 +1204,12 @@ void NewProjectAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             continue;
 
         const int stepsSincePatternStart = step - patternStartStep;
-        const int playbackStepIndex = ((stepsSincePatternStart % patternLength) + patternLength) % patternLength;
-
-        // v1.4.0:
+        const int activeLoopLength = getPatternLoopLength(activePattern);
+        const int playbackStepIndex = ((stepsSincePatternStart % activeLoopLength) + activeLoopLength) % activeLoopLength;
+        displayCurrentStep.store(playbackStepIndex + 1);
+        // v1.4.0/v1.12.0:
         // Rotation is applied only to the source step lookup.
-        // The playback clock and displayed current step remain unchanged.
+        // The visible playhead follows the loop-relative playback step.
         const int sourceStepIndex = getRotatedSourceStepIndex(activePattern, playbackStepIndex);
 
         const Step currentStepData = getStepForPattern(activePattern, sourceStepIndex);
@@ -1196,7 +1257,7 @@ void NewProjectAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     juce::XmlElement root("MidiPatternLauncher");
 
-    root.setAttribute("version", "1.11.0");
+    root.setAttribute("version", "1.12.0");
 
     for (int patternIndex = 0; patternIndex < numPatterns; ++patternIndex)
     {
@@ -1205,6 +1266,7 @@ void NewProjectAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
         patternXml->setAttribute("index", patternIndex);
         patternXml->setAttribute("transpose", patternTranspose[static_cast<size_t>(patternIndex)]);
         patternXml->setAttribute("rotation", patternRotation[static_cast<size_t>(patternIndex)]);
+        patternXml->setAttribute("length", getPatternLoopLength(patternIndex));
         patternXml->setAttribute("inverted", patternInverted[static_cast<size_t>(patternIndex)] ? 1 : 0);
 
         for (int stepIndex = 0; stepIndex < patternLength; ++stepIndex)
@@ -1261,6 +1323,11 @@ void NewProjectAudioProcessor::setStateInformation(const void* data, int sizeInB
 
         patternRotation[static_cast<size_t>(patternIndex)] =
             juce::jlimit(0, patternLength - 1, patternXml->getIntAttribute("rotation", 0));
+
+        patternLoopLength[static_cast<size_t>(patternIndex)] =
+            juce::jlimit(minPatternLoopLength,
+                patternLength,
+                patternXml->getIntAttribute("length", defaultPatternLoopLength));
 
         patternInverted[static_cast<size_t>(patternIndex)] =
             patternXml->getIntAttribute("inverted", 0) != 0;
