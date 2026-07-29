@@ -58,6 +58,8 @@ public:
     void changeStepNote(int patternIndex, int stepIndex, int delta);
     void changeStepVelocity(int patternIndex, int stepIndex, int delta);
     void changeStepDuration(int patternIndex, int stepIndex, int delta);
+    void copyPattern(int sourcePatternIndex, int destinationPatternIndex);
+    void clearPattern(int patternIndex);
 
     int getPatternTranspose(int patternIndex) const;
     void changePatternTranspose(int patternIndex, int deltaSemitones);

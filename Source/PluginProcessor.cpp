@@ -404,6 +404,49 @@ void NewProjectAudioProcessor::changeStepDuration(int patternIndex, int stepInde
         step.durationSteps + delta);
 }
 
+void NewProjectAudioProcessor::copyPattern(int sourcePatternIndex, int destinationPatternIndex)
+{
+    if (sourcePatternIndex < 0 || sourcePatternIndex >= numPatterns)
+        return;
+
+    if (destinationPatternIndex < 0 || destinationPatternIndex >= numPatterns)
+        return;
+
+    if (sourcePatternIndex == destinationPatternIndex)
+        return;
+
+    patterns[static_cast<size_t>(destinationPatternIndex)] =
+        patterns[static_cast<size_t>(sourcePatternIndex)];
+
+    patternTranspose[static_cast<size_t>(destinationPatternIndex)] =
+        patternTranspose[static_cast<size_t>(sourcePatternIndex)];
+
+    patternRotation[static_cast<size_t>(destinationPatternIndex)] =
+        patternRotation[static_cast<size_t>(sourcePatternIndex)];
+
+    patternInverted[static_cast<size_t>(destinationPatternIndex)] =
+        patternInverted[static_cast<size_t>(sourcePatternIndex)];
+
+    updateAutomationParametersForPattern(destinationPatternIndex);
+}
+
+void NewProjectAudioProcessor::clearPattern(int patternIndex)
+{
+    if (patternIndex < 0 || patternIndex >= numPatterns)
+        return;
+
+    auto& pattern = patterns[static_cast<size_t>(patternIndex)];
+
+    for (auto& step : pattern)
+        step = Step{};
+
+    patternTranspose[static_cast<size_t>(patternIndex)] = 0;
+    patternRotation[static_cast<size_t>(patternIndex)] = 0;
+    patternInverted[static_cast<size_t>(patternIndex)] = false;
+
+    updateAutomationParametersForPattern(patternIndex);
+}
+
 //==============================================================================
 // v1.3.0 transpose helpers.
 // These are non-destructive: they do not change the stored step notes.
@@ -955,7 +998,7 @@ void NewProjectAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     juce::XmlElement root("MidiPatternLauncher");
 
-    root.setAttribute("version", "1.8.0");
+    root.setAttribute("version", "1.9.0");
 
     for (int patternIndex = 0; patternIndex < numPatterns; ++patternIndex)
     {

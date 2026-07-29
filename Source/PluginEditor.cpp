@@ -5,11 +5,16 @@ NewProjectAudioProcessorEditor::NewProjectAudioProcessorEditor(NewProjectAudioPr
     : AudioProcessorEditor(&p),
     audioProcessor(p)
 {
-    setSize(720, 660);
+    setSize(720, 710);
 
     addAndMakeVisible(editPattern1Button);
     addAndMakeVisible(editPattern2Button);
     addAndMakeVisible(editPattern3Button);
+
+    addAndMakeVisible(copyToP1Button);
+    addAndMakeVisible(copyToP2Button);
+    addAndMakeVisible(copyToP3Button);
+    addAndMakeVisible(clearPatternButton);
 
     addAndMakeVisible(noteDownButton);
     addAndMakeVisible(noteUpButton);
@@ -53,15 +58,48 @@ void NewProjectAudioProcessorEditor::setupButtonCallbacks()
 
     editPattern2Button.onClick = [this]()
         {
-            selectedEditPattern = 0;
+            selectedEditPattern = 1;
             updateEditPatternButtonHighlights();
             repaint();
         };
 
     editPattern3Button.onClick = [this]()
         {
+            selectedEditPattern = 2;
+            updateEditPatternButtonHighlights();
+            repaint();
+        };
+
+    copyToP1Button.onClick = [this]()
+        {
+            const int sourcePattern = getDisplayedPattern();
+            audioProcessor.copyPattern(sourcePattern, 0);
             selectedEditPattern = 0;
             updateEditPatternButtonHighlights();
+            repaint();
+        };
+
+    copyToP2Button.onClick = [this]()
+        {
+            const int sourcePattern = getDisplayedPattern();
+            audioProcessor.copyPattern(sourcePattern, 1);
+            selectedEditPattern = 1;
+            updateEditPatternButtonHighlights();
+            repaint();
+        };
+
+    copyToP3Button.onClick = [this]()
+        {
+            const int sourcePattern = getDisplayedPattern();
+            audioProcessor.copyPattern(sourcePattern, 2);
+            selectedEditPattern = 2;
+            updateEditPatternButtonHighlights();
+            repaint();
+        };
+
+    clearPatternButton.onClick = [this]()
+        {
+            audioProcessor.clearPattern(getDisplayedPattern());
             repaint();
         };
 
@@ -289,6 +327,8 @@ juce::Rectangle<int> NewProjectAudioProcessorEditor::getStepArea() const
     bounds.removeFromTop(24);   // editing pattern text
     bounds.removeFromTop(10);
     bounds.removeFromTop(38);   // edit pattern buttons
+    bounds.removeFromTop(8);
+    bounds.removeFromTop(34);   // pattern tools buttons
     bounds.removeFromTop(18);
     bounds.removeFromTop(24);   // monitor title
     bounds.removeFromTop(8);
@@ -357,7 +397,7 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.8.0 - Per-pattern automation",
+    g.drawFittedText("v1.9.0 - Pattern tools",
         bounds.removeFromTop(28),
         juce::Justification::centred,
         1);
@@ -410,6 +450,11 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
     // Reserve space for Edit P1/P2/P3 buttons.
     // The actual button bounds are set in resized().
     bounds.removeFromTop(38);
+
+    bounds.removeFromTop(8);
+
+    // Reserve space for pattern tool buttons.
+    bounds.removeFromTop(34);
 
     bounds.removeFromTop(18);
 
@@ -527,8 +572,8 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
     {
         editorText << "Note: " << selectedNote;
 
-    if (patternTranspose != 0 || patternInverted)
-        editorText << " -> " << selectedTransformedNote;
+        if (patternTranspose != 0 || patternInverted)
+            editorText << " -> " << selectedTransformedNote;
 
         editorText << "    ";
         editorText << "Velocity: " << selectedVelocity << "    ";
@@ -573,6 +618,24 @@ void NewProjectAudioProcessorEditor::resized()
     editPatternRow.removeFromLeft(selectorGap);
 
     editPattern3Button.setBounds(editPatternRow.removeFromLeft(selectorButtonWidth));
+
+    bounds.removeFromTop(8);
+
+    auto patternToolsRow = bounds.removeFromTop(34);
+
+    const int toolsGap = 8;
+    const int toolsButtonWidth = (patternToolsRow.getWidth() - (3 * toolsGap)) / 4;
+
+    copyToP1Button.setBounds(patternToolsRow.removeFromLeft(toolsButtonWidth));
+    patternToolsRow.removeFromLeft(toolsGap);
+
+    copyToP2Button.setBounds(patternToolsRow.removeFromLeft(toolsButtonWidth));
+    patternToolsRow.removeFromLeft(toolsGap);
+
+    copyToP3Button.setBounds(patternToolsRow.removeFromLeft(toolsButtonWidth));
+    patternToolsRow.removeFromLeft(toolsGap);
+
+    clearPatternButton.setBounds(patternToolsRow.removeFromLeft(toolsButtonWidth));
 
     bounds.removeFromTop(18);
     bounds.removeFromTop(24);   // monitor title
