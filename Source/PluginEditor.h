@@ -24,8 +24,8 @@ private:
     juce::String inversionTextFromValue(bool value) const;
 
     int getDisplayedPattern() const;
-    juce::Rectangle<int> getStepArea() const;
-    juce::Rectangle<int> getStepBox(int stepIndex) const;
+    juce::Rectangle<int> getPatternMatrixArea() const;
+    juce::Rectangle<int> getPatternStepBox(int patternIndex, int stepIndex) const;
 
     void updateSelectedStepFromMousePosition(juce::Point<int> position);
     void setupButtonCallbacks();

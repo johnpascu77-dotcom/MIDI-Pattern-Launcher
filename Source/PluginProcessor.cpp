@@ -1196,7 +1196,7 @@ void NewProjectAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     juce::XmlElement root("MidiPatternLauncher");
 
-    root.setAttribute("version", "1.10.0");
+    root.setAttribute("version", "1.11.0");
 
     for (int patternIndex = 0; patternIndex < numPatterns; ++patternIndex)
     {
