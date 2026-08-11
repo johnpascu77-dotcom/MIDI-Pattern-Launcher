@@ -114,6 +114,21 @@ juce::AudioProcessorValueTreeState& MidiPatternLauncherAudioProcessor::getAPVTS(
     return apvts;
 }
 
+int MidiPatternLauncherAudioProcessor::getGridModeIndex() const
+{
+    return juce::jlimit(0, 1, getChoiceParameterIndex("gridModeParam"));
+}
+
+int MidiPatternLauncherAudioProcessor::getGridStepCount() const
+{
+    return isTernaryGridMode() ? 12 : patternLength;
+}
+
+bool MidiPatternLauncherAudioProcessor::isTernaryGridMode() const
+{
+    return getGridModeIndex() == 1;
+}
+
 void MidiPatternLauncherAudioProcessor::updateAutomationParametersForPattern(int patternIndex)
 {
     syncParametersFromPattern(patternIndex);

@@ -42,6 +42,10 @@ public:
     juce::AudioProcessorValueTreeState& getAPVTS();
     void updateAutomationParametersForPattern(int patternIndex);
 
+    int getGridModeIndex() const;
+    int getGridStepCount() const;
+    bool isTernaryGridMode() const;
+
     int getDisplayActivePattern() const;
     int getDisplayPendingPattern() const;
     int getDisplayCurrentStep() const;
