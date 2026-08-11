@@ -36,3 +36,6 @@ Builds/VisualStudio2022/Release/
 JuceLibraryCode/modules/
 Builds/
 Builds/
+
+# CMake out-of-source build
+build-cmake/
