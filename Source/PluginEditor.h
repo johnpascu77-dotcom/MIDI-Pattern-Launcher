@@ -13,6 +13,8 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent& event) override;
+    void mouseDrag(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
 
 private:
     void timerCallback() override;
@@ -30,6 +32,8 @@ private:
     bool getPatternStepAtPosition(juce::Point<int> position, int& patternIndexOut, int& stepIndexOut) const;
     void updateSelectedStepFromMousePosition(juce::Point<int> position);
     void toggleStepAtMousePosition(juce::Point<int> position);
+    void setStepAtMousePosition(juce::Point<int> position, bool shouldHaveNote);
+    void setPatternStepValue(int patternIndex, int stepIndex, bool shouldHaveNote);
 
     void setupButtonCallbacks();
     void updateEditPatternButtonHighlights();
@@ -42,6 +46,11 @@ private:
 
     int selectedStep = 0;
     int selectedEditPattern = 0;
+    
+    bool isDraggingPatternStepEdit = false;
+    bool dragPaintValue = true;
+    int lastEditedPattern = -1;
+    int lastEditedStep = -1;
 
     juce::TextButton editPattern1Button{ "Edit P1" };
     juce::TextButton editPattern2Button{ "Edit P2" };

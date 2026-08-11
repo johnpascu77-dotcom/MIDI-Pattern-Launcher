@@ -532,6 +532,49 @@ void MidiPatternLauncherAudioProcessorEditor::toggleStepAtMousePosition(juce::Po
     repaint();
 }
 
+void MidiPatternLauncherAudioProcessorEditor::setStepAtMousePosition(
+    juce::Point<int> position,
+    bool shouldHaveNote)
+{
+    int patternIndex = -1;
+    int stepIndex = -1;
+
+    if (!getPatternStepAtPosition(position, patternIndex, stepIndex))
+        return;
+
+    setPatternStepValue(patternIndex, stepIndex, shouldHaveNote);
+}
+
+void MidiPatternLauncherAudioProcessorEditor::setPatternStepValue(
+    int patternIndex,
+    int stepIndex,
+    bool shouldHaveNote)
+{
+    if (patternIndex < 0 || patternIndex >= 3 || stepIndex < 0 || stepIndex >= 16)
+        return;
+
+    if (lastEditedPattern == patternIndex && lastEditedStep == stepIndex)
+        return;
+
+    selectedEditPattern = patternIndex;
+    selectedStep = stepIndex;
+
+    audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+
+    const bool currentlyHasNote = audioProcessor.stepHasNote(patternIndex, stepIndex);
+
+    if (shouldHaveNote && !currentlyHasNote)
+        audioProcessor.makeStepNote(patternIndex, stepIndex);
+    else if (!shouldHaveNote && currentlyHasNote)
+        audioProcessor.clearStep(patternIndex, stepIndex);
+
+    lastEditedPattern = patternIndex;
+    lastEditedStep = stepIndex;
+
+    updateEditPatternButtonHighlights();
+    repaint();
+}
+
 void MidiPatternLauncherAudioProcessorEditor::mouseDown(const juce::MouseEvent& event)
 {
     const auto position = event.getPosition();
@@ -539,13 +582,40 @@ void MidiPatternLauncherAudioProcessorEditor::mouseDown(const juce::MouseEvent& 
     int patternIndex = -1;
     int stepIndex = -1;
 
+    lastEditedPattern = -1;
+    lastEditedStep = -1;
+
     if (getPatternStepAtPosition(position, patternIndex, stepIndex))
     {
-        toggleStepAtMousePosition(position);
+        const bool rightClickErase = event.mods.isRightButtonDown();
+        const bool currentlyHasNote = audioProcessor.stepHasNote(patternIndex, stepIndex);
+
+        dragPaintValue = rightClickErase ? false : !currentlyHasNote;
+        isDraggingPatternStepEdit = true;
+
+        setPatternStepValue(patternIndex, stepIndex, dragPaintValue);
         return;
     }
 
+    isDraggingPatternStepEdit = false;
     updateSelectedStepFromMousePosition(position);
+}
+
+void MidiPatternLauncherAudioProcessorEditor::mouseDrag(const juce::MouseEvent& event)
+{
+    if (!isDraggingPatternStepEdit)
+        return;
+
+    setStepAtMousePosition(event.getPosition(), dragPaintValue);
+}
+
+void MidiPatternLauncherAudioProcessorEditor::mouseUp(const juce::MouseEvent& event)
+{
+    juce::ignoreUnused(event);
+
+    isDraggingPatternStepEdit = false;
+    lastEditedPattern = -1;
+    lastEditedStep = -1;
 }
 
 void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
