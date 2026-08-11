@@ -1,7 +1,7 @@
-#include "PluginProcessor.h"
+﻿#include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-NewProjectAudioProcessorEditor::NewProjectAudioProcessorEditor(NewProjectAudioProcessor& p)
+MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor(MidiPatternLauncherAudioProcessor& p)
     : AudioProcessorEditor(&p),
     audioProcessor(p)
 {
@@ -112,12 +112,12 @@ NewProjectAudioProcessorEditor::NewProjectAudioProcessorEditor(NewProjectAudioPr
     startTimerHz(20);
 }
 
-NewProjectAudioProcessorEditor::~NewProjectAudioProcessorEditor()
+MidiPatternLauncherAudioProcessorEditor::~MidiPatternLauncherAudioProcessorEditor()
 {
     stopTimer();
 }
 
-void NewProjectAudioProcessorEditor::setupButtonCallbacks()
+void MidiPatternLauncherAudioProcessorEditor::setupButtonCallbacks()
 {
     editPattern1Button.onClick = [this]()
         {
@@ -299,7 +299,7 @@ void NewProjectAudioProcessorEditor::setupButtonCallbacks()
         };
 }
 
-void NewProjectAudioProcessorEditor::updateEditPatternButtonHighlights()
+void MidiPatternLauncherAudioProcessorEditor::updateEditPatternButtonHighlights()
 {
     auto setButtonStyle = [](juce::TextButton& button, bool selected)
         {
@@ -324,7 +324,7 @@ void NewProjectAudioProcessorEditor::updateEditPatternButtonHighlights()
     setButtonStyle(editPattern3Button, selectedEditPattern == 2);
 }
 
-void NewProjectAudioProcessorEditor::timerCallback()
+void MidiPatternLauncherAudioProcessorEditor::timerCallback()
 {
     selectedEditPattern = audioProcessor.getTargetPatternIndex();
     selectedStep = audioProcessor.getTargetStepIndex();
@@ -333,7 +333,7 @@ void NewProjectAudioProcessorEditor::timerCallback()
     repaint();
 }
 
-juce::String NewProjectAudioProcessorEditor::patternNameFromValue(int value) const
+juce::String MidiPatternLauncherAudioProcessorEditor::patternNameFromValue(int value) const
 {
     if (value == 0)
         return "Pattern 1";
@@ -347,7 +347,7 @@ juce::String NewProjectAudioProcessorEditor::patternNameFromValue(int value) con
     return "Stopped";
 }
 
-juce::String NewProjectAudioProcessorEditor::pendingNameFromValue(int value) const
+juce::String MidiPatternLauncherAudioProcessorEditor::pendingNameFromValue(int value) const
 {
     if (value == -2)
         return "None";
@@ -367,7 +367,7 @@ juce::String NewProjectAudioProcessorEditor::pendingNameFromValue(int value) con
     return "Unknown";
 }
 
-juce::String NewProjectAudioProcessorEditor::transposeTextFromValue(int value) const
+juce::String MidiPatternLauncherAudioProcessorEditor::transposeTextFromValue(int value) const
 {
     if (value > 0)
         return "+" + juce::String(value);
@@ -375,12 +375,12 @@ juce::String NewProjectAudioProcessorEditor::transposeTextFromValue(int value) c
     return juce::String(value);
 }
 
-juce::String NewProjectAudioProcessorEditor::inversionTextFromValue(bool value) const
+juce::String MidiPatternLauncherAudioProcessorEditor::inversionTextFromValue(bool value) const
 {
     return value ? "On" : "Off";
 }
 
-juce::String NewProjectAudioProcessorEditor::rotationTextFromValue(int value) const
+juce::String MidiPatternLauncherAudioProcessorEditor::rotationTextFromValue(int value) const
 {
     if (value > 0)
         return "+" + juce::String(value);
@@ -388,12 +388,12 @@ juce::String NewProjectAudioProcessorEditor::rotationTextFromValue(int value) co
     return juce::String(value);
 }
 
-int NewProjectAudioProcessorEditor::getDisplayedPattern() const
+int MidiPatternLauncherAudioProcessorEditor::getDisplayedPattern() const
 {
     return selectedEditPattern;
 }
 
-juce::Rectangle<int> NewProjectAudioProcessorEditor::getPatternMatrixArea() const
+juce::Rectangle<int> MidiPatternLauncherAudioProcessorEditor::getPatternMatrixArea() const
 {
     auto bounds = getLocalBounds().reduced(24);
 
@@ -406,7 +406,7 @@ juce::Rectangle<int> NewProjectAudioProcessorEditor::getPatternMatrixArea() cons
     return bounds.removeFromTop(154);
 }
 
-juce::Rectangle<int> NewProjectAudioProcessorEditor::getPatternStepBox(int patternIndex, int stepIndex) const
+juce::Rectangle<int> MidiPatternLauncherAudioProcessorEditor::getPatternStepBox(int patternIndex, int stepIndex) const
 {
     auto matrixArea = getPatternMatrixArea();
 
@@ -442,7 +442,7 @@ juce::Rectangle<int> NewProjectAudioProcessorEditor::getPatternStepBox(int patte
     return juce::Rectangle<int>(x, y, stepWidth, rowHeight);
 }
 
-void NewProjectAudioProcessorEditor::updateSelectedStepFromMousePosition(juce::Point<int> position)
+void MidiPatternLauncherAudioProcessorEditor::updateSelectedStepFromMousePosition(juce::Point<int> position)
 {
     auto matrixArea = getPatternMatrixArea();
 
@@ -487,12 +487,12 @@ void NewProjectAudioProcessorEditor::updateSelectedStepFromMousePosition(juce::P
     }
 }
 
-void NewProjectAudioProcessorEditor::mouseDown(const juce::MouseEvent& event)
+void MidiPatternLauncherAudioProcessorEditor::mouseDown(const juce::MouseEvent& event)
 {
     updateSelectedStepFromMousePosition(event.getPosition());
 }
 
-void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
+void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 {
     g.fillAll(juce::Colour(0xff2f3f45));
 
@@ -774,7 +774,7 @@ void NewProjectAudioProcessorEditor::paint(juce::Graphics& g)
     // Bottom controls are real buttons laid out in resized().
 }
 
-void NewProjectAudioProcessorEditor::resized()
+void MidiPatternLauncherAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds().reduced(24);
 
@@ -931,3 +931,4 @@ void NewProjectAudioProcessorEditor::resized()
     targetDurationLabel.setBounds(targetRow2.removeFromLeft(targetLabelWidth));
     targetDurationSlider.setBounds(targetRow2.removeFromLeft(targetControlWidth));
 }
+

@@ -1,15 +1,15 @@
-#pragma once
+﻿#pragma once
 
 #include <JuceHeader.h>
 #include <vector>
 #include <array>
 #include <atomic>
 
-class NewProjectAudioProcessor : public juce::AudioProcessor
+class MidiPatternLauncherAudioProcessor : public juce::AudioProcessor
 {
 public:
-    NewProjectAudioProcessor();
-    ~NewProjectAudioProcessor() override;
+    MidiPatternLauncherAudioProcessor();
+    ~MidiPatternLauncherAudioProcessor() override;
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -204,5 +204,6 @@ private:
 
     bool wasHostPlaying = false;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NewProjectAudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MidiPatternLauncherAudioProcessor)
 };
+

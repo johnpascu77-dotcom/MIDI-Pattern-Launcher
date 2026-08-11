@@ -1,11 +1,11 @@
-#include "PluginProcessor.h"
+﻿#include "PluginProcessor.h"
 #include "PluginEditor.h"
 
 #include <cmath>
 #include <algorithm>
 
 //==============================================================================
-NewProjectAudioProcessor::NewProjectAudioProcessor()
+MidiPatternLauncherAudioProcessor::MidiPatternLauncherAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
     : AudioProcessor(BusesProperties()),
     apvts(*this, nullptr, "Parameters", createParameterLayout())
@@ -16,11 +16,11 @@ NewProjectAudioProcessor::NewProjectAudioProcessor()
     initialisePatterns();
 }
 
-NewProjectAudioProcessor::~NewProjectAudioProcessor()
+MidiPatternLauncherAudioProcessor::~MidiPatternLauncherAudioProcessor()
 {
 }
 
-juce::AudioProcessorValueTreeState::ParameterLayout NewProjectAudioProcessor::createParameterLayout()
+juce::AudioProcessorValueTreeState::ParameterLayout MidiPatternLauncherAudioProcessor::createParameterLayout()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> parameters;
 
@@ -103,54 +103,54 @@ juce::AudioProcessorValueTreeState::ParameterLayout NewProjectAudioProcessor::cr
     return { parameters.begin(), parameters.end() };
 }
 
-juce::AudioProcessorValueTreeState& NewProjectAudioProcessor::getAPVTS()
+juce::AudioProcessorValueTreeState& MidiPatternLauncherAudioProcessor::getAPVTS()
 {
     return apvts;
 }
 
-void NewProjectAudioProcessor::updateAutomationParametersForPattern(int patternIndex)
+void MidiPatternLauncherAudioProcessor::updateAutomationParametersForPattern(int patternIndex)
 {
     syncParametersFromPattern(patternIndex);
 }
 
-void NewProjectAudioProcessor::setParameterPlainValueNotifyingHost(const juce::String& parameterID,
+void MidiPatternLauncherAudioProcessor::setParameterPlainValueNotifyingHost(const juce::String& parameterID,
     float plainValue)
 {
     if (auto* parameter = apvts.getParameter(parameterID))
         parameter->setValueNotifyingHost(parameter->convertTo0to1(plainValue));
 }
 
-int NewProjectAudioProcessor::getTargetPatternIndex() const
+int MidiPatternLauncherAudioProcessor::getTargetPatternIndex() const
 {
     return juce::jlimit(0, numPatterns - 1, getChoiceParameterIndex("targetPatternParam"));
 }
 
-int NewProjectAudioProcessor::getTargetStepIndex() const
+int MidiPatternLauncherAudioProcessor::getTargetStepIndex() const
 {
     return juce::jlimit(0, patternLength - 1, getIntParameterValue("targetStepParam") - 1);
 }
 
-int NewProjectAudioProcessor::getTargetNote() const
+int MidiPatternLauncherAudioProcessor::getTargetNote() const
 {
     return juce::jlimit(0, 127, getIntParameterValue("targetNoteParam"));
 }
 
-int NewProjectAudioProcessor::getTargetVelocity() const
+int MidiPatternLauncherAudioProcessor::getTargetVelocity() const
 {
     return juce::jlimit(1, 127, getIntParameterValue("targetVelocityParam"));
 }
 
-int NewProjectAudioProcessor::getTargetDurationSteps() const
+int MidiPatternLauncherAudioProcessor::getTargetDurationSteps() const
 {
     return juce::jlimit(1, patternLength, getIntParameterValue("targetDurationParam"));
 }
 
-bool NewProjectAudioProcessor::getTargetEnabled() const
+bool MidiPatternLauncherAudioProcessor::getTargetEnabled() const
 {
     return getBoolParameterValue("targetEnabledParam");
 }
 
-void NewProjectAudioProcessor::setTargetPatternAndStep(int patternIndex, int stepIndex)
+void MidiPatternLauncherAudioProcessor::setTargetPatternAndStep(int patternIndex, int stepIndex)
 {
     patternIndex = juce::jlimit(0, numPatterns - 1, patternIndex);
     stepIndex = juce::jlimit(0, patternLength - 1, stepIndex);
@@ -168,17 +168,17 @@ void NewProjectAudioProcessor::setTargetPatternAndStep(int patternIndex, int ste
     updateTargetParametersFromStep();
 }
 
-void NewProjectAudioProcessor::updateTargetParametersFromStep()
+void MidiPatternLauncherAudioProcessor::updateTargetParametersFromStep()
 {
     syncTargetParametersFromStep();
 }
 
-void NewProjectAudioProcessor::applyTargetParametersToStep()
+void MidiPatternLauncherAudioProcessor::applyTargetParametersToStep()
 {
     syncTargetStepFromParameters();
 }
 
-void NewProjectAudioProcessor::syncTargetParametersFromStep()
+void MidiPatternLauncherAudioProcessor::syncTargetParametersFromStep()
 {
     const int patternIndex = getTargetPatternIndex();
     const int stepIndex = getTargetStepIndex();
@@ -207,7 +207,7 @@ void NewProjectAudioProcessor::syncTargetParametersFromStep()
     lastTargetEnabledParam = enabled;
 }
 
-void NewProjectAudioProcessor::syncTargetStepFromParameters()
+void MidiPatternLauncherAudioProcessor::syncTargetStepFromParameters()
 {
     const int patternIndex = getTargetPatternIndex();
     const int stepIndex = getTargetStepIndex();
@@ -230,7 +230,7 @@ void NewProjectAudioProcessor::syncTargetStepFromParameters()
     lastTargetEnabledParam = enabled;
 }
 
-void NewProjectAudioProcessor::syncParametersFromPattern(int patternIndex)
+void MidiPatternLauncherAudioProcessor::syncParametersFromPattern(int patternIndex)
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return;
@@ -257,7 +257,7 @@ void NewProjectAudioProcessor::syncParametersFromPattern(int patternIndex)
     suppressParameterSync.store(false);
 }
 
-int NewProjectAudioProcessor::getChoiceParameterIndex(const juce::String& parameterID) const
+int MidiPatternLauncherAudioProcessor::getChoiceParameterIndex(const juce::String& parameterID) const
 {
     if (auto* parameter = apvts.getParameter(parameterID))
     {
@@ -270,7 +270,7 @@ int NewProjectAudioProcessor::getChoiceParameterIndex(const juce::String& parame
     return 0;
 }
 
-int NewProjectAudioProcessor::getIntParameterValue(const juce::String& parameterID) const
+int MidiPatternLauncherAudioProcessor::getIntParameterValue(const juce::String& parameterID) const
 {
     if (auto* parameter = apvts.getParameter(parameterID))
     {
@@ -283,7 +283,7 @@ int NewProjectAudioProcessor::getIntParameterValue(const juce::String& parameter
     return 0;
 }
 
-bool NewProjectAudioProcessor::getBoolParameterValue(const juce::String& parameterID) const
+bool MidiPatternLauncherAudioProcessor::getBoolParameterValue(const juce::String& parameterID) const
 {
     if (auto* parameter = apvts.getParameter(parameterID))
     {
@@ -296,7 +296,7 @@ bool NewProjectAudioProcessor::getBoolParameterValue(const juce::String& paramet
     return false;
 }
 
-void NewProjectAudioProcessor::syncEngineFromParameters()
+void MidiPatternLauncherAudioProcessor::syncEngineFromParameters()
 {
     if (suppressParameterSync.load())
         return;
@@ -383,7 +383,7 @@ void NewProjectAudioProcessor::syncEngineFromParameters()
 }
 
 //==============================================================================
-void NewProjectAudioProcessor::initialisePatterns()
+void MidiPatternLauncherAudioProcessor::initialisePatterns()
 {
     for (auto& pattern : patterns)
     {
@@ -467,7 +467,7 @@ void NewProjectAudioProcessor::initialisePatterns()
     patternInverted = { false, false, false };
 }
 
-NewProjectAudioProcessor::Step NewProjectAudioProcessor::getStepForPattern(int patternIndex,
+MidiPatternLauncherAudioProcessor::Step MidiPatternLauncherAudioProcessor::getStepForPattern(int patternIndex,
     int stepIndex) const
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
@@ -480,27 +480,27 @@ NewProjectAudioProcessor::Step NewProjectAudioProcessor::getStepForPattern(int p
 }
 
 //==============================================================================
-int NewProjectAudioProcessor::getDisplayActivePattern() const
+int MidiPatternLauncherAudioProcessor::getDisplayActivePattern() const
 {
     return displayActivePattern.load();
 }
 
-int NewProjectAudioProcessor::getDisplayPendingPattern() const
+int MidiPatternLauncherAudioProcessor::getDisplayPendingPattern() const
 {
     return displayPendingPattern.load();
 }
 
-int NewProjectAudioProcessor::getDisplayCurrentStep() const
+int MidiPatternLauncherAudioProcessor::getDisplayCurrentStep() const
 {
     return displayCurrentStep.load();
 }
 
-int NewProjectAudioProcessor::getDisplayCurrentBar() const
+int MidiPatternLauncherAudioProcessor::getDisplayCurrentBar() const
 {
     return displayCurrentBar.load();
 }
 
-bool NewProjectAudioProcessor::stepHasNote(int patternIndex, int stepIndex) const
+bool MidiPatternLauncherAudioProcessor::stepHasNote(int patternIndex, int stepIndex) const
 {
     const Step step = getStepForPattern(patternIndex, stepIndex);
 
@@ -509,22 +509,22 @@ bool NewProjectAudioProcessor::stepHasNote(int patternIndex, int stepIndex) cons
         && step.durationSteps > 0;
 }
 
-int NewProjectAudioProcessor::getStepNote(int patternIndex, int stepIndex) const
+int MidiPatternLauncherAudioProcessor::getStepNote(int patternIndex, int stepIndex) const
 {
     return getStepForPattern(patternIndex, stepIndex).note;
 }
 
-int NewProjectAudioProcessor::getStepVelocity(int patternIndex, int stepIndex) const
+int MidiPatternLauncherAudioProcessor::getStepVelocity(int patternIndex, int stepIndex) const
 {
     return getStepForPattern(patternIndex, stepIndex).velocity;
 }
 
-int NewProjectAudioProcessor::getStepDurationSteps(int patternIndex, int stepIndex) const
+int MidiPatternLauncherAudioProcessor::getStepDurationSteps(int patternIndex, int stepIndex) const
 {
     return getStepForPattern(patternIndex, stepIndex).durationSteps;
 }
 
-void NewProjectAudioProcessor::setStepValues(int patternIndex,
+void MidiPatternLauncherAudioProcessor::setStepValues(int patternIndex,
     int stepIndex,
     int note,
     int velocity,
@@ -559,12 +559,12 @@ void NewProjectAudioProcessor::setStepValues(int patternIndex,
         updateTargetParametersFromStep();
 }
 
-void NewProjectAudioProcessor::clearStep(int patternIndex, int stepIndex)
+void MidiPatternLauncherAudioProcessor::clearStep(int patternIndex, int stepIndex)
 {
     setStepValues(patternIndex, stepIndex, -1, 0, 0);
 }
 
-void NewProjectAudioProcessor::makeStepNote(int patternIndex, int stepIndex)
+void MidiPatternLauncherAudioProcessor::makeStepNote(int patternIndex, int stepIndex)
 {
     if (stepHasNote(patternIndex, stepIndex))
         return;
@@ -572,7 +572,7 @@ void NewProjectAudioProcessor::makeStepNote(int patternIndex, int stepIndex)
     setStepValues(patternIndex, stepIndex, 60, 100, 1);
 }
 
-void NewProjectAudioProcessor::changeStepNote(int patternIndex, int stepIndex, int delta)
+void MidiPatternLauncherAudioProcessor::changeStepNote(int patternIndex, int stepIndex, int delta)
 {
     Step step = getStepForPattern(patternIndex, stepIndex);
 
@@ -589,7 +589,7 @@ void NewProjectAudioProcessor::changeStepNote(int patternIndex, int stepIndex, i
         step.durationSteps);
 }
 
-void NewProjectAudioProcessor::changeStepVelocity(int patternIndex, int stepIndex, int delta)
+void MidiPatternLauncherAudioProcessor::changeStepVelocity(int patternIndex, int stepIndex, int delta)
 {
     Step step = getStepForPattern(patternIndex, stepIndex);
 
@@ -606,7 +606,7 @@ void NewProjectAudioProcessor::changeStepVelocity(int patternIndex, int stepInde
         step.durationSteps);
 }
 
-void NewProjectAudioProcessor::changeStepDuration(int patternIndex, int stepIndex, int delta)
+void MidiPatternLauncherAudioProcessor::changeStepDuration(int patternIndex, int stepIndex, int delta)
 {
     Step step = getStepForPattern(patternIndex, stepIndex);
 
@@ -623,7 +623,7 @@ void NewProjectAudioProcessor::changeStepDuration(int patternIndex, int stepInde
         step.durationSteps + delta);
 }
 
-void NewProjectAudioProcessor::copyPattern(int sourcePatternIndex, int destinationPatternIndex)
+void MidiPatternLauncherAudioProcessor::copyPattern(int sourcePatternIndex, int destinationPatternIndex)
 {
     if (sourcePatternIndex < 0 || sourcePatternIndex >= numPatterns)
         return;
@@ -652,7 +652,7 @@ void NewProjectAudioProcessor::copyPattern(int sourcePatternIndex, int destinati
     updateAutomationParametersForPattern(destinationPatternIndex);
 }
 
-void NewProjectAudioProcessor::clearPattern(int patternIndex)
+void MidiPatternLauncherAudioProcessor::clearPattern(int patternIndex)
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return;
@@ -674,7 +674,7 @@ void NewProjectAudioProcessor::clearPattern(int patternIndex)
 // v1.3.0 transpose helpers.
 // These are non-destructive: they do not change the stored step notes.
 
-int NewProjectAudioProcessor::getPatternTranspose(int patternIndex) const
+int MidiPatternLauncherAudioProcessor::getPatternTranspose(int patternIndex) const
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return 0;
@@ -682,7 +682,7 @@ int NewProjectAudioProcessor::getPatternTranspose(int patternIndex) const
     return patternTranspose[static_cast<size_t>(patternIndex)];
 }
 
-void NewProjectAudioProcessor::changePatternTranspose(int patternIndex, int deltaSemitones)
+void MidiPatternLauncherAudioProcessor::changePatternTranspose(int patternIndex, int deltaSemitones)
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return;
@@ -691,7 +691,7 @@ void NewProjectAudioProcessor::changePatternTranspose(int patternIndex, int delt
     transpose = juce::jlimit(-48, 48, transpose + deltaSemitones);
 }
 
-void NewProjectAudioProcessor::resetPatternTranspose(int patternIndex)
+void MidiPatternLauncherAudioProcessor::resetPatternTranspose(int patternIndex)
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return;
@@ -699,7 +699,7 @@ void NewProjectAudioProcessor::resetPatternTranspose(int patternIndex)
     patternTranspose[static_cast<size_t>(patternIndex)] = 0;
 }
 
-int NewProjectAudioProcessor::getTransposedStepNote(int patternIndex, int stepIndex) const
+int MidiPatternLauncherAudioProcessor::getTransposedStepNote(int patternIndex, int stepIndex) const
 {
     const Step step = getStepForPattern(patternIndex, stepIndex);
 
@@ -722,7 +722,7 @@ int NewProjectAudioProcessor::getTransposedStepNote(int patternIndex, int stepIn
 //     67 becomes 53
 //     60 remains 60
 
-bool NewProjectAudioProcessor::getPatternInverted(int patternIndex) const
+bool MidiPatternLauncherAudioProcessor::getPatternInverted(int patternIndex) const
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return false;
@@ -730,7 +730,7 @@ bool NewProjectAudioProcessor::getPatternInverted(int patternIndex) const
     return patternInverted[static_cast<size_t>(patternIndex)];
 }
 
-void NewProjectAudioProcessor::togglePatternInverted(int patternIndex)
+void MidiPatternLauncherAudioProcessor::togglePatternInverted(int patternIndex)
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return;
@@ -739,7 +739,7 @@ void NewProjectAudioProcessor::togglePatternInverted(int patternIndex)
     inverted = !inverted;
 }
 
-void NewProjectAudioProcessor::setPatternInverted(int patternIndex, bool shouldBeInverted)
+void MidiPatternLauncherAudioProcessor::setPatternInverted(int patternIndex, bool shouldBeInverted)
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return;
@@ -747,7 +747,7 @@ void NewProjectAudioProcessor::setPatternInverted(int patternIndex, bool shouldB
     patternInverted[static_cast<size_t>(patternIndex)] = shouldBeInverted;
 }
 
-int NewProjectAudioProcessor::applyPatternTransformsToNote(int patternIndex, int note) const
+int MidiPatternLauncherAudioProcessor::applyPatternTransformsToNote(int patternIndex, int note) const
 {
     if (note < 0)
         return -1;
@@ -762,7 +762,7 @@ int NewProjectAudioProcessor::applyPatternTransformsToNote(int patternIndex, int
     return juce::jlimit(0, 127, transformedNote);
 }
 
-int NewProjectAudioProcessor::getInvertedStepNote(int patternIndex, int stepIndex) const
+int MidiPatternLauncherAudioProcessor::getInvertedStepNote(int patternIndex, int stepIndex) const
 {
     const Step step = getStepForPattern(patternIndex, stepIndex);
 
@@ -775,7 +775,7 @@ int NewProjectAudioProcessor::getInvertedStepNote(int patternIndex, int stepInde
     return juce::jlimit(0, 127, (inversionAxisNote * 2) - step.note);
 }
 
-int NewProjectAudioProcessor::getTransformedStepNote(int patternIndex, int stepIndex) const
+int MidiPatternLauncherAudioProcessor::getTransformedStepNote(int patternIndex, int stepIndex) const
 {
     const Step step = getStepForPattern(patternIndex, stepIndex);
 
@@ -799,7 +799,7 @@ int NewProjectAudioProcessor::getTransformedStepNote(int patternIndex, int stepI
 //
 // with wraparound inside 0..15.
 
-int NewProjectAudioProcessor::getPatternRotation(int patternIndex) const
+int MidiPatternLauncherAudioProcessor::getPatternRotation(int patternIndex) const
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return 0;
@@ -807,7 +807,7 @@ int NewProjectAudioProcessor::getPatternRotation(int patternIndex) const
     return patternRotation[static_cast<size_t>(patternIndex)];
 }
 
-void NewProjectAudioProcessor::changePatternRotation(int patternIndex, int deltaSteps)
+void MidiPatternLauncherAudioProcessor::changePatternRotation(int patternIndex, int deltaSteps)
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return;
@@ -818,7 +818,7 @@ void NewProjectAudioProcessor::changePatternRotation(int patternIndex, int delta
     rotation = ((rotation % patternLength) + patternLength) % patternLength;
 }
 
-void NewProjectAudioProcessor::resetPatternRotation(int patternIndex)
+void MidiPatternLauncherAudioProcessor::resetPatternRotation(int patternIndex)
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return;
@@ -826,7 +826,7 @@ void NewProjectAudioProcessor::resetPatternRotation(int patternIndex)
     patternRotation[static_cast<size_t>(patternIndex)] = 0;
 }
 
-int NewProjectAudioProcessor::getRotatedSourceStepIndex(int patternIndex,
+int MidiPatternLauncherAudioProcessor::getRotatedSourceStepIndex(int patternIndex,
     int playbackStepIndex) const
 {
     const int loopLength = getPatternLoopLength(patternIndex);
@@ -836,7 +836,7 @@ int NewProjectAudioProcessor::getRotatedSourceStepIndex(int patternIndex,
     return ((playbackStepIndex - effectiveRotation) % loopLength + loopLength) % loopLength;
 }
 
-int NewProjectAudioProcessor::getPatternLoopLength(int patternIndex) const
+int MidiPatternLauncherAudioProcessor::getPatternLoopLength(int patternIndex) const
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return defaultPatternLoopLength;
@@ -846,7 +846,7 @@ int NewProjectAudioProcessor::getPatternLoopLength(int patternIndex) const
         patternLoopLength[static_cast<size_t>(patternIndex)]);
 }
 
-void NewProjectAudioProcessor::setPatternLoopLength(int patternIndex, int length)
+void MidiPatternLauncherAudioProcessor::setPatternLoopLength(int patternIndex, int length)
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return;
@@ -857,7 +857,7 @@ void NewProjectAudioProcessor::setPatternLoopLength(int patternIndex, int length
     updateAutomationParametersForPattern(patternIndex);
 }
 
-void NewProjectAudioProcessor::changePatternLoopLength(int patternIndex, int deltaSteps)
+void MidiPatternLauncherAudioProcessor::changePatternLoopLength(int patternIndex, int deltaSteps)
 {
     if (patternIndex < 0 || patternIndex >= numPatterns)
         return;
@@ -867,12 +867,12 @@ void NewProjectAudioProcessor::changePatternLoopLength(int patternIndex, int del
 }
 
 //==============================================================================
-const juce::String NewProjectAudioProcessor::getName() const
+const juce::String MidiPatternLauncherAudioProcessor::getName() const
 {
     return JucePlugin_Name;
 }
 
-bool NewProjectAudioProcessor::acceptsMidi() const
+bool MidiPatternLauncherAudioProcessor::acceptsMidi() const
 {
 #if JucePlugin_WantsMidiInput
     return true;
@@ -881,7 +881,7 @@ bool NewProjectAudioProcessor::acceptsMidi() const
 #endif
 }
 
-bool NewProjectAudioProcessor::producesMidi() const
+bool MidiPatternLauncherAudioProcessor::producesMidi() const
 {
 #if JucePlugin_ProducesMidiOutput
     return true;
@@ -890,7 +890,7 @@ bool NewProjectAudioProcessor::producesMidi() const
 #endif
 }
 
-bool NewProjectAudioProcessor::isMidiEffect() const
+bool MidiPatternLauncherAudioProcessor::isMidiEffect() const
 {
 #if JucePlugin_IsMidiEffect
     return true;
@@ -899,59 +899,59 @@ bool NewProjectAudioProcessor::isMidiEffect() const
 #endif
 }
 
-double NewProjectAudioProcessor::getTailLengthSeconds() const
+double MidiPatternLauncherAudioProcessor::getTailLengthSeconds() const
 {
     return 0.0;
 }
 
-juce::String NewProjectAudioProcessor::getTransposeParameterID(int patternIndex) const
+juce::String MidiPatternLauncherAudioProcessor::getTransposeParameterID(int patternIndex) const
 {
     return "p" + juce::String(patternIndex + 1) + "TransposeParam";
 }
 
-juce::String NewProjectAudioProcessor::getRotationParameterID(int patternIndex) const
+juce::String MidiPatternLauncherAudioProcessor::getRotationParameterID(int patternIndex) const
 {
     return "p" + juce::String(patternIndex + 1) + "RotationParam";
 }
 
-juce::String NewProjectAudioProcessor::getLengthParameterID(int patternIndex) const
+juce::String MidiPatternLauncherAudioProcessor::getLengthParameterID(int patternIndex) const
 {
     return "p" + juce::String(patternIndex + 1) + "LengthParam";
 }
 
-juce::String NewProjectAudioProcessor::getInversionParameterID(int patternIndex) const
+juce::String MidiPatternLauncherAudioProcessor::getInversionParameterID(int patternIndex) const
 {
     return "p" + juce::String(patternIndex + 1) + "InversionParam";
 }
 
-int NewProjectAudioProcessor::getNumPrograms()
+int MidiPatternLauncherAudioProcessor::getNumPrograms()
 {
     return 1;
 }
 
-int NewProjectAudioProcessor::getCurrentProgram()
+int MidiPatternLauncherAudioProcessor::getCurrentProgram()
 {
     return 0;
 }
 
-void NewProjectAudioProcessor::setCurrentProgram(int index)
+void MidiPatternLauncherAudioProcessor::setCurrentProgram(int index)
 {
     juce::ignoreUnused(index);
 }
 
-const juce::String NewProjectAudioProcessor::getProgramName(int index)
+const juce::String MidiPatternLauncherAudioProcessor::getProgramName(int index)
 {
     juce::ignoreUnused(index);
     return {};
 }
 
-void NewProjectAudioProcessor::changeProgramName(int index, const juce::String& newName)
+void MidiPatternLauncherAudioProcessor::changeProgramName(int index, const juce::String& newName)
 {
     juce::ignoreUnused(index, newName);
 }
 
 //==============================================================================
-void NewProjectAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
+void MidiPatternLauncherAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     juce::ignoreUnused(samplesPerBlock);
 
@@ -974,13 +974,13 @@ void NewProjectAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBl
     displayCurrentBar.store(0);
 }
 
-void NewProjectAudioProcessor::releaseResources()
+void MidiPatternLauncherAudioProcessor::releaseResources()
 {
     pendingNoteOffs.clear();
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
-bool NewProjectAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
+bool MidiPatternLauncherAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
     juce::ignoreUnused(layouts);
     return true;
@@ -994,7 +994,7 @@ bool NewProjectAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts
 // All Notes Off message. The individual note-offs are the important part for
 // stubborn instruments/hosts that do not fully react to CC-style panic messages.
 
-void NewProjectAudioProcessor::sendAllNotesOffNow(juce::MidiBuffer& midiMessages, int sampleOffset)
+void MidiPatternLauncherAudioProcessor::sendAllNotesOffNow(juce::MidiBuffer& midiMessages, int sampleOffset)
 {
     for (int note = 0; note < 128; ++note)
         midiMessages.addEvent(juce::MidiMessage::noteOff(1, note), sampleOffset);
@@ -1004,7 +1004,7 @@ void NewProjectAudioProcessor::sendAllNotesOffNow(juce::MidiBuffer& midiMessages
     pendingNoteOffs.clear();
 }
 
-void NewProjectAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
+void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     juce::MidiBuffer& midiMessages)
 {
     buffer.clear();
@@ -1242,18 +1242,18 @@ void NewProjectAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 }
 
 //==============================================================================
-bool NewProjectAudioProcessor::hasEditor() const
+bool MidiPatternLauncherAudioProcessor::hasEditor() const
 {
     return true;
 }
 
-juce::AudioProcessorEditor* NewProjectAudioProcessor::createEditor()
+juce::AudioProcessorEditor* MidiPatternLauncherAudioProcessor::createEditor()
 {
-    return new NewProjectAudioProcessorEditor(*this);
+    return new MidiPatternLauncherAudioProcessorEditor(*this);
 }
 
 //==============================================================================
-void NewProjectAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
+void MidiPatternLauncherAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     juce::XmlElement root("MidiPatternLauncher");
 
@@ -1295,7 +1295,7 @@ void NewProjectAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
     copyXmlToBinary(root, destData);
 }
 
-void NewProjectAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
+void MidiPatternLauncherAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
     auto xmlState = getXmlFromBinary(data, sizeInBytes);
 
@@ -1397,6 +1397,7 @@ void NewProjectAudioProcessor::setStateInformation(const void* data, int sizeInB
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new NewProjectAudioProcessor();
+    return new MidiPatternLauncherAudioProcessor();
 }
+
 
