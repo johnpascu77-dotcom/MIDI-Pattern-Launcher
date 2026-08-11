@@ -38,6 +38,8 @@ private:
     void setPatternStepValue(int patternIndex, int stepIndex, bool shouldHaveNote);
     void setMelodyPaintCellValue(int stepIndex, int midiNote, bool shouldHaveNote);
     void setMelodyPaintCellAtMousePosition(juce::Point<int> position, bool shouldHaveNote);
+    void startMelodyDurationDrag(int stepIndex, int midiNote);
+    void updateMelodyDragDurationAtMousePosition(juce::Point<int> position);
 
     void setupButtonCallbacks();
     void updateEditPatternButtonHighlights();
@@ -55,6 +57,11 @@ private:
     bool dragPaintValue = true;
     int lastEditedPattern = -1;
     int lastEditedStep = -1;
+
+    bool isDraggingMelodyDuration = false;
+    int melodyDragPattern = -1;
+    int melodyDragStartStep = -1;
+    int melodyDragStartNote = -1;
 
     juce::TextButton editPattern1Button{ "Edit P1" };
     juce::TextButton editPattern2Button{ "Edit P2" };

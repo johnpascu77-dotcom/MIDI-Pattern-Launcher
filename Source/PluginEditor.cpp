@@ -572,7 +572,7 @@ void MidiPatternLauncherAudioProcessorEditor::setMelodyPaintCellValue(
     if (shouldHaveNote)
     {
         const int velocity = juce::jlimit(1, 127, audioProcessor.getTargetVelocity());
-        const int duration = juce::jlimit(1, 16, audioProcessor.getTargetDurationSteps());
+        const int duration = juce::jlimit(1, gridStepCount, audioProcessor.getTargetDurationSteps());
 
         audioProcessor.setStepValues(patternIndex, stepIndex, midiNote, velocity, duration);
     }
@@ -580,6 +580,8 @@ void MidiPatternLauncherAudioProcessorEditor::setMelodyPaintCellValue(
     {
         audioProcessor.clearStep(patternIndex, stepIndex);
     }
+
+    audioProcessor.updateTargetParametersFromStep();
 
     lastEditedPattern = patternIndex;
     lastEditedStep = stepIndex;
@@ -599,6 +601,89 @@ void MidiPatternLauncherAudioProcessorEditor::setMelodyPaintCellAtMousePosition(
         return;
 
     setMelodyPaintCellValue(stepIndex, midiNote, shouldHaveNote);
+}
+
+void MidiPatternLauncherAudioProcessorEditor::startMelodyDurationDrag(
+    int stepIndex,
+    int midiNote)
+{
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (stepIndex < 0 || stepIndex >= gridStepCount)
+        return;
+
+    if (midiNote < 0 || midiNote > 127)
+        return;
+
+    melodyDragPattern = getDisplayedPattern();
+    melodyDragStartStep = stepIndex;
+    melodyDragStartNote = midiNote;
+    isDraggingMelodyDuration = true;
+
+    selectedEditPattern = melodyDragPattern;
+    selectedStep = melodyDragStartStep;
+
+    audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+
+    const int velocity = juce::jlimit(1, 127, audioProcessor.getTargetVelocity());
+
+    audioProcessor.setStepValues(
+        melodyDragPattern,
+        melodyDragStartStep,
+        melodyDragStartNote,
+        velocity,
+        1);
+
+    audioProcessor.updateTargetParametersFromStep();
+
+    lastEditedPattern = melodyDragPattern;
+    lastEditedStep = melodyDragStartStep;
+
+    updateEditPatternButtonHighlights();
+    repaint();
+}
+
+void MidiPatternLauncherAudioProcessorEditor::updateMelodyDragDurationAtMousePosition(
+    juce::Point<int> position)
+{
+    if (!isDraggingMelodyDuration)
+        return;
+
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (melodyDragPattern < 0 || melodyDragPattern >= 3)
+        return;
+
+    if (melodyDragStartStep < 0 || melodyDragStartStep >= gridStepCount)
+        return;
+
+    int hoverStepIndex = -1;
+    int hoverMidiNote = -1;
+
+    if (!getMelodyPaintCellAtPosition(position, hoverStepIndex, hoverMidiNote))
+        return;
+
+    juce::ignoreUnused(hoverMidiNote);
+
+    const int endStep = juce::jlimit(melodyDragStartStep, gridStepCount - 1, hoverStepIndex);
+    const int duration = juce::jlimit(1, gridStepCount, endStep - melodyDragStartStep + 1);
+
+    const int velocity = juce::jlimit(1, 127, audioProcessor.getStepVelocity(melodyDragPattern, melodyDragStartStep));
+
+    audioProcessor.setStepValues(
+        melodyDragPattern,
+        melodyDragStartStep,
+        melodyDragStartNote,
+        velocity,
+        duration);
+
+    selectedEditPattern = melodyDragPattern;
+    selectedStep = melodyDragStartStep;
+
+    audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+    audioProcessor.updateTargetParametersFromStep();
+
+    repaint();
 }
 
 void MidiPatternLauncherAudioProcessorEditor::updateSelectedStepFromMousePosition(juce::Point<int> position)
@@ -728,14 +813,28 @@ void MidiPatternLauncherAudioProcessorEditor::mouseDown(const juce::MouseEvent& 
         int melodyStepIndex = -1;
         int melodyMidiNote = -1;
 
+        isDraggingMelodyDuration = false;
+        melodyDragPattern = -1;
+        melodyDragStartStep = -1;
+        melodyDragStartNote = -1;
+
         if (getMelodyPaintCellAtPosition(position, melodyStepIndex, melodyMidiNote))
         {
             const bool rightClickErase = event.mods.isRightButtonDown();
 
-            dragPaintValue = !rightClickErase;
-            isDraggingPatternStepEdit = true;
+            if (rightClickErase)
+            {
+                dragPaintValue = false;
+                isDraggingPatternStepEdit = true;
+                setMelodyPaintCellValue(melodyStepIndex, melodyMidiNote, false);
+            }
+            else
+            {
+                dragPaintValue = true;
+                isDraggingPatternStepEdit = false;
+                startMelodyDurationDrag(melodyStepIndex, melodyMidiNote);
+            }
 
-            setMelodyPaintCellValue(melodyStepIndex, melodyMidiNote, dragPaintValue);
             return;
         }
 
@@ -764,14 +863,25 @@ void MidiPatternLauncherAudioProcessorEditor::mouseDown(const juce::MouseEvent& 
 
 void MidiPatternLauncherAudioProcessorEditor::mouseDrag(const juce::MouseEvent& event)
 {
-    if (!isDraggingPatternStepEdit)
-        return;
-
     if (audioProcessor.isMelodyPaintMode())
     {
-        setMelodyPaintCellAtMousePosition(event.getPosition(), dragPaintValue);
+        if (isDraggingMelodyDuration)
+        {
+            updateMelodyDragDurationAtMousePosition(event.getPosition());
+            return;
+        }
+
+        if (isDraggingPatternStepEdit)
+        {
+            setMelodyPaintCellAtMousePosition(event.getPosition(), dragPaintValue);
+            return;
+        }
+
         return;
     }
+
+    if (!isDraggingPatternStepEdit)
+        return;
 
     setStepAtMousePosition(event.getPosition(), dragPaintValue);
 }
@@ -781,6 +891,12 @@ void MidiPatternLauncherAudioProcessorEditor::mouseUp(const juce::MouseEvent& ev
     juce::ignoreUnused(event);
 
     isDraggingPatternStepEdit = false;
+    isDraggingMelodyDuration = false;
+
+    melodyDragPattern = -1;
+    melodyDragStartStep = -1;
+    melodyDragStartNote = -1;
+
     lastEditedPattern = -1;
     lastEditedStep = -1;
 }
@@ -958,11 +1074,7 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
                 const bool isCurrentStep = activePattern == displayedPattern && currentStep == (stepIndex + 1);
                 const bool isSelectedColumn = selectedEditPattern == displayedPattern && selectedStep == stepIndex;
 
-                if (isCurrentStep && isNoteCell)
-                    g.setColour(juce::Colour(0xfff5c542));
-                else if (isNoteCell)
-                    g.setColour(isInsideLoop ? juce::Colour(0xff5aa6b8) : juce::Colour(0xff35545c));
-                else if (isCurrentStep)
+                if (isCurrentStep)
                     g.setColour(juce::Colour(0xff5a5124));
                 else if (isReferenceOctaveNote)
                     g.setColour(isInsideLoop ? juce::Colour(0xff263f45) : juce::Colour(0xff1c292d));
@@ -971,22 +1083,74 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 
                 g.fillRoundedRectangle(cellBox.toFloat(), 2.0f);
 
-                if (isNoteCell)
+                g.setColour(juce::Colour(0xff3b5056));
+                g.drawRoundedRectangle(cellBox.toFloat(), 2.0f, 0.5f);
+
+                if (isSelectedColumn)
                 {
-                    g.setColour(isCurrentStep ? juce::Colours::black : juce::Colours::white);
+                    g.setColour(juce::Colour(0x66ffffff));
                     g.drawRoundedRectangle(cellBox.toFloat().reduced(1.0f), 2.0f, 1.0f);
                 }
-                else
-                {
-                    g.setColour(juce::Colour(0xff3b5056));
-                    g.drawRoundedRectangle(cellBox.toFloat(), 2.0f, 0.5f);
-                }
+            }
+        }
 
-                if (isSelectedColumn && isNoteCell)
-                {
-                    g.setColour(juce::Colours::white);
-                    g.drawRoundedRectangle(cellBox.toFloat().reduced(1.0f), 2.0f, 2.0f);
-                }
+        // Draw duration bars after the background grid has been drawn.
+        for (int stepIndex = 0; stepIndex < gridStepCount; ++stepIndex)
+        {
+            if (!audioProcessor.stepHasNote(displayedPattern, stepIndex))
+                continue;
+
+            const int midiNote = audioProcessor.getStepNote(displayedPattern, stepIndex);
+
+            if (midiNote < melodyLowestMidiNote || midiNote > melodyHighestMidiNote)
+                continue;
+
+            const int duration = juce::jlimit(1,
+                gridStepCount,
+                audioProcessor.getStepDurationSteps(displayedPattern, stepIndex));
+
+            const int endStep = juce::jlimit(stepIndex,
+                gridStepCount - 1,
+                stepIndex + duration - 1);
+
+            const int noteOffset = melodyHighestMidiNote - midiNote;
+
+            const int x = gridArea.getX() + stepIndex * (cellWidth + stepGap);
+            const int endX = gridArea.getX() + endStep * (cellWidth + stepGap) + cellWidth;
+            const int y = gridArea.getY() + noteOffset * (cellHeight + noteGap);
+
+            auto noteBar = juce::Rectangle<int>(
+                x,
+                y,
+                endX - x,
+                cellHeight).reduced(1, 1);
+
+            const bool isCurrentStep = activePattern == displayedPattern
+                && currentStep >= (stepIndex + 1)
+                && currentStep <= (endStep + 1);
+
+            const bool isSelectedNote = selectedEditPattern == displayedPattern
+                && selectedStep == stepIndex;
+
+            g.setColour(isCurrentStep
+                ? juce::Colour(0xfff5c542)
+                : juce::Colour(0xff5aa6b8));
+
+            g.fillRoundedRectangle(noteBar.toFloat(), 3.0f);
+
+            g.setColour(isCurrentStep ? juce::Colours::black : juce::Colours::white);
+            g.drawRoundedRectangle(noteBar.toFloat(), 3.0f, 1.0f);
+
+            g.setFont(10.0f);
+            g.drawFittedText(juce::String(midiNote),
+                noteBar.reduced(3, 1),
+                juce::Justification::centredLeft,
+                1);
+
+            if (isSelectedNote)
+            {
+                g.setColour(juce::Colours::white);
+                g.drawRoundedRectangle(noteBar.toFloat().reduced(1.0f), 3.0f, 2.0f);
             }
         }
 
