@@ -30,10 +30,14 @@ private:
     juce::Rectangle<int> getPatternStepBox(int patternIndex, int stepIndex) const;
 
     bool getPatternStepAtPosition(juce::Point<int> position, int& patternIndexOut, int& stepIndexOut) const;
+    bool getMelodyPaintCellAtPosition(juce::Point<int> position, int& stepIndexOut, int& midiNoteOut) const;
+
     void updateSelectedStepFromMousePosition(juce::Point<int> position);
     void toggleStepAtMousePosition(juce::Point<int> position);
     void setStepAtMousePosition(juce::Point<int> position, bool shouldHaveNote);
     void setPatternStepValue(int patternIndex, int stepIndex, bool shouldHaveNote);
+    void setMelodyPaintCellValue(int stepIndex, int midiNote, bool shouldHaveNote);
+    void setMelodyPaintCellAtMousePosition(juce::Point<int> position, bool shouldHaveNote);
 
     void setupButtonCallbacks();
     void updateEditPatternButtonHighlights();

@@ -482,6 +482,125 @@ bool MidiPatternLauncherAudioProcessorEditor::getPatternStepAtPosition(
     return false;
 }
 
+bool MidiPatternLauncherAudioProcessorEditor::getMelodyPaintCellAtPosition(
+    juce::Point<int> position,
+    int& stepIndexOut,
+    int& midiNoteOut) const
+{
+    static constexpr int melodyLowestMidiNote = 48;
+    static constexpr int melodyHighestMidiNote = 71;
+    static constexpr int melodyNoteCount = melodyHighestMidiNote - melodyLowestMidiNote + 1;
+
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    auto melodyArea = getPatternMatrixArea();
+
+    const int noteLabelWidth = 38;
+    const int stepLabelHeight = 16;
+    const int stepGap = 3;
+    const int noteGap = 1;
+
+    melodyArea.removeFromLeft(noteLabelWidth);
+    melodyArea.removeFromTop(stepLabelHeight);
+
+    auto gridArea = melodyArea;
+
+    if (!gridArea.contains(position))
+    {
+        stepIndexOut = -1;
+        midiNoteOut = -1;
+        return false;
+    }
+
+    const int cellWidth = (gridArea.getWidth() - ((gridStepCount - 1) * stepGap)) / gridStepCount;
+    const int cellHeight = (gridArea.getHeight() - ((melodyNoteCount - 1) * noteGap)) / melodyNoteCount;
+
+    for (int stepIndex = 0; stepIndex < gridStepCount; ++stepIndex)
+    {
+        const int x = gridArea.getX() + stepIndex * (cellWidth + stepGap);
+
+        for (int noteOffset = 0; noteOffset < melodyNoteCount; ++noteOffset)
+        {
+            const int y = gridArea.getY() + noteOffset * (cellHeight + noteGap);
+
+            auto cellBox = juce::Rectangle<int>(
+                x,
+                y,
+                cellWidth,
+                cellHeight);
+
+            if (cellBox.contains(position))
+            {
+                stepIndexOut = stepIndex;
+                midiNoteOut = melodyHighestMidiNote - noteOffset;
+                return true;
+            }
+        }
+    }
+
+    stepIndexOut = -1;
+    midiNoteOut = -1;
+    return false;
+}
+
+void MidiPatternLauncherAudioProcessorEditor::setMelodyPaintCellValue(
+    int stepIndex,
+    int midiNote,
+    bool shouldHaveNote)
+{
+    static constexpr int melodyLowestMidiNote = 48;
+    static constexpr int melodyHighestMidiNote = 71;
+
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (stepIndex < 0 || stepIndex >= gridStepCount)
+        return;
+
+    if (midiNote < melodyLowestMidiNote || midiNote > melodyHighestMidiNote)
+        return;
+
+    const int patternIndex = getDisplayedPattern();
+
+    if (lastEditedPattern == patternIndex && lastEditedStep == stepIndex && shouldHaveNote)
+        return;
+
+    selectedEditPattern = patternIndex;
+    selectedStep = stepIndex;
+
+    audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+
+    if (shouldHaveNote)
+    {
+        const int velocity = juce::jlimit(1, 127, audioProcessor.getTargetVelocity());
+        const int duration = juce::jlimit(1, 16, audioProcessor.getTargetDurationSteps());
+
+        audioProcessor.setStepValues(patternIndex, stepIndex, midiNote, velocity, duration);
+    }
+    else
+    {
+        audioProcessor.clearStep(patternIndex, stepIndex);
+    }
+
+    lastEditedPattern = patternIndex;
+    lastEditedStep = stepIndex;
+
+    updateEditPatternButtonHighlights();
+    repaint();
+}
+
+void MidiPatternLauncherAudioProcessorEditor::setMelodyPaintCellAtMousePosition(
+    juce::Point<int> position,
+    bool shouldHaveNote)
+{
+    int stepIndex = -1;
+    int midiNote = -1;
+
+    if (!getMelodyPaintCellAtPosition(position, stepIndex, midiNote))
+        return;
+
+    setMelodyPaintCellValue(stepIndex, midiNote, shouldHaveNote);
+}
+
 void MidiPatternLauncherAudioProcessorEditor::updateSelectedStepFromMousePosition(juce::Point<int> position)
 {
     auto matrixArea = getPatternMatrixArea();
@@ -601,11 +720,31 @@ void MidiPatternLauncherAudioProcessorEditor::mouseDown(const juce::MouseEvent& 
 {
     const auto position = event.getPosition();
 
-    int patternIndex = -1;
-    int stepIndex = -1;
-
     lastEditedPattern = -1;
     lastEditedStep = -1;
+
+    if (audioProcessor.isMelodyPaintMode())
+    {
+        int melodyStepIndex = -1;
+        int melodyMidiNote = -1;
+
+        if (getMelodyPaintCellAtPosition(position, melodyStepIndex, melodyMidiNote))
+        {
+            const bool rightClickErase = event.mods.isRightButtonDown();
+
+            dragPaintValue = !rightClickErase;
+            isDraggingPatternStepEdit = true;
+
+            setMelodyPaintCellValue(melodyStepIndex, melodyMidiNote, dragPaintValue);
+            return;
+        }
+
+        isDraggingPatternStepEdit = false;
+        return;
+    }
+
+    int patternIndex = -1;
+    int stepIndex = -1;
 
     if (getPatternStepAtPosition(position, patternIndex, stepIndex))
     {
@@ -627,6 +766,12 @@ void MidiPatternLauncherAudioProcessorEditor::mouseDrag(const juce::MouseEvent& 
 {
     if (!isDraggingPatternStepEdit)
         return;
+
+    if (audioProcessor.isMelodyPaintMode())
+    {
+        setMelodyPaintCellAtMousePosition(event.getPosition(), dragPaintValue);
+        return;
+    }
 
     setStepAtMousePosition(event.getPosition(), dragPaintValue);
 }
@@ -711,7 +856,9 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
     g.setFont(16.0f);
 
     juce::String matrixTitle;
-    matrixTitle << "Pattern Matrix / Target Edit"
+    matrixTitle << (audioProcessor.isMelodyPaintMode()
+        ? "Melody Paint / Target Edit"
+        : "Pattern Matrix / Target Edit")
         << "    Selected: P" << (displayedPattern + 1)
         << " Step " << (selectedStep + 1);
 
@@ -723,159 +870,296 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
     bounds.removeFromTop(8);
 
     //==========================================================================
-    // Pattern matrix
+    // Pattern matrix / Melody paint grid
 
-    auto matrixArea = getPatternMatrixArea();
-
-    const int rowHeight = 42;
-    const int rowGap = 8;
-    const int labelWidth = 34;
-    const int transformWidth = 132;
-    const int labelGap = 8;
-    const int transformGap = 12;
-
-    for (int patternIndex = 0; patternIndex < 3; ++patternIndex)
+    if (audioProcessor.isMelodyPaintMode())
     {
-        const int rowY = matrixArea.getY() + patternIndex * (rowHeight + rowGap);
+        auto melodyArea = getPatternMatrixArea();
 
-        auto labelBox = juce::Rectangle<int>(matrixArea.getX(),
-            rowY,
-            labelWidth,
-            rowHeight);
+        static constexpr int melodyLowestMidiNote = 48;
+        static constexpr int melodyHighestMidiNote = 71;
+        static constexpr int melodyNoteCount = melodyHighestMidiNote - melodyLowestMidiNote + 1;
 
-        const bool isActivePattern = activePattern == patternIndex;
-        const bool isPendingPattern = pendingPattern == patternIndex;
-        const bool isSelectedPattern = displayedPattern == patternIndex;
+        const int noteLabelWidth = 38;
+        const int stepLabelHeight = 16;
+        const int stepGap = 3;
+        const int noteGap = 1;
 
-        if (isActivePattern)
-            g.setColour(juce::Colour(0xfff5c542));
-        else if (isSelectedPattern)
-            g.setColour(juce::Colour(0xff5aa6b8));
-        else
-            g.setColour(juce::Colour(0xff26363b));
+        auto noteLabelArea = melodyArea.removeFromLeft(noteLabelWidth);
+        juce::ignoreUnused(noteLabelArea);
 
-        g.fillRoundedRectangle(labelBox.toFloat(), 5.0f);
+        auto stepHeaderArea = melodyArea.removeFromTop(stepLabelHeight);
+        auto gridArea = melodyArea;
 
-        if (isPendingPattern)
-        {
-            g.setColour(juce::Colour(0xffff9f43));
-            g.drawRoundedRectangle(labelBox.toFloat().reduced(1.0f), 5.0f, 2.0f);
-        }
-        else
-        {
-            g.setColour(juce::Colours::white);
-            g.drawRoundedRectangle(labelBox.toFloat(), 5.0f, 1.0f);
-        }
+        const int cellWidth = (gridArea.getWidth() - ((gridStepCount - 1) * stepGap)) / gridStepCount;
+        const int cellHeight = (gridArea.getHeight() - ((melodyNoteCount - 1) * noteGap)) / melodyNoteCount;
 
-        g.setColour(isActivePattern ? juce::Colours::black : juce::Colours::white);
-        g.setFont(15.0f);
-        g.drawFittedText("P" + juce::String(patternIndex + 1),
-            labelBox.reduced(3),
-            juce::Justification::centred,
-            1);
+        g.setColour(juce::Colour(0xff1f2d32));
+        g.fillRoundedRectangle(gridArea.toFloat(), 6.0f);
 
+        // Step labels
         for (int stepIndex = 0; stepIndex < gridStepCount; ++stepIndex)
         {
-            auto stepBox = getPatternStepBox(patternIndex, stepIndex);
+            const int x = gridArea.getX() + stepIndex * (cellWidth + stepGap);
 
-            const int loopLength = juce::jmin(audioProcessor.getPatternLoopLength(patternIndex), gridStepCount);
-            const bool isInsideLoop = stepIndex < loopLength;
+            auto stepLabelBox = juce::Rectangle<int>(
+                x,
+                stepHeaderArea.getY(),
+                cellWidth,
+                stepHeaderArea.getHeight());
 
-            const bool hasNote = audioProcessor.stepHasNote(patternIndex, stepIndex);
-            const bool isCurrentStep = activePattern == patternIndex && currentStep == (stepIndex + 1);
-            const bool isSelectedStep = selectedEditPattern == patternIndex && selectedStep == stepIndex;
-
-            if (isCurrentStep)
-            {
-                g.setColour(juce::Colour(0xfff5c542));
-            }
-            else if (hasNote)
-            {
-                g.setColour(isInsideLoop
-                    ? juce::Colour(0xff5aa6b8)
-                    : juce::Colour(0xff35545c));
-            }
-            else
-            {
-                g.setColour(isInsideLoop
-                    ? juce::Colour(0xff26363b)
-                    : juce::Colour(0xff1c292d));
-            }
-
-            g.fillRoundedRectangle(stepBox.toFloat(), 5.0f);
-
-            if (isCurrentStep)
-                g.setColour(juce::Colours::black);
-            else if (isInsideLoop)
-                g.setColour(juce::Colours::white);
-            else
-                g.setColour(juce::Colour(0xff607278));
-
-            g.drawRoundedRectangle(stepBox.toFloat(), 5.0f, 1.0f);
-
-            if (isSelectedStep)
-            {
-                g.setColour(juce::Colours::white);
-                g.drawRoundedRectangle(stepBox.toFloat().reduced(1.5f), 5.0f, 3.0f);
-            }
-
-            if (isCurrentStep)
-                g.setColour(juce::Colours::black);
-            else if (isInsideLoop)
-                g.setColour(juce::Colours::white);
-            else
-                g.setColour(juce::Colour(0xff8fa4aa));
-
-            g.setFont(12.0f);
-
-            juce::String stepText;
-            stepText << (stepIndex + 1);
-
-            if (hasNote)
-            {
-                const int note = audioProcessor.getStepNote(patternIndex, stepIndex);
-                const int duration = audioProcessor.getStepDurationSteps(patternIndex, stepIndex);
-
-                stepText << "\n" << note;
-                stepText << "\n" << "d" << duration;
-            }
-            else
-            {
-                stepText << "\n-";
-            }
-
-            g.drawFittedText(stepText,
-                stepBox.reduced(2),
+            g.setColour(juce::Colour(0xffcfe8ef));
+            g.setFont(10.0f);
+            g.drawFittedText(juce::String(stepIndex + 1),
+                stepLabelBox,
                 juce::Justification::centred,
-                3);
+                1);
         }
 
-        const int transformX = matrixArea.getRight() - transformWidth;
+        // MIDI note rows: highest note at top, lowest note at bottom.
+        for (int noteOffset = 0; noteOffset < melodyNoteCount; ++noteOffset)
+        {
+            const int midiNote = melodyHighestMidiNote - noteOffset;
+            const int y = gridArea.getY() + noteOffset * (cellHeight + noteGap);
 
-        auto transformBox = juce::Rectangle<int>(transformX,
-            rowY,
-            transformWidth,
-            rowHeight);
+            auto noteLabelBox = juce::Rectangle<int>(
+                getPatternMatrixArea().getX(),
+                y,
+                noteLabelWidth - 6,
+                cellHeight);
 
-        const int rowTranspose = audioProcessor.getPatternTranspose(patternIndex);
-        const int rowRotation = audioProcessor.getPatternRotation(patternIndex);
-        const int rowLength = juce::jmin(audioProcessor.getPatternLoopLength(patternIndex), gridStepCount);
-        const bool rowInverted = audioProcessor.getPatternInverted(patternIndex);
+            const bool isReferenceOctaveNote = (midiNote % 12) == 0;
 
-        juce::String transformText;
-        transformText << "Tr " << transposeTextFromValue(rowTranspose)
-            << " Rot " << rotationTextFromValue(rowRotation)
-            << " Len " << rowLength
-            << "\nInv " << inversionTextFromValue(rowInverted);
+            g.setColour(isReferenceOctaveNote
+                ? juce::Colour(0xfff5c542)
+                : juce::Colour(0xffcfe8ef));
 
-        juce::ignoreUnused(transformGap);
+            g.setFont(isReferenceOctaveNote ? 11.0f : 10.0f);
+            g.drawFittedText(juce::String(midiNote),
+                noteLabelBox,
+                juce::Justification::centredRight,
+                1);
+
+            for (int stepIndex = 0; stepIndex < gridStepCount; ++stepIndex)
+            {
+                const int x = gridArea.getX() + stepIndex * (cellWidth + stepGap);
+
+                auto cellBox = juce::Rectangle<int>(
+                    x,
+                    y,
+                    cellWidth,
+                    cellHeight);
+
+                const int loopLength = juce::jmin(audioProcessor.getPatternLoopLength(displayedPattern), gridStepCount);
+                const bool isInsideLoop = stepIndex < loopLength;
+                const bool stepHasNote = audioProcessor.stepHasNote(displayedPattern, stepIndex);
+                const int stepNote = audioProcessor.getStepNote(displayedPattern, stepIndex);
+                const bool isNoteCell = stepHasNote && stepNote == midiNote;
+                const bool isCurrentStep = activePattern == displayedPattern && currentStep == (stepIndex + 1);
+                const bool isSelectedColumn = selectedEditPattern == displayedPattern && selectedStep == stepIndex;
+
+                if (isCurrentStep && isNoteCell)
+                    g.setColour(juce::Colour(0xfff5c542));
+                else if (isNoteCell)
+                    g.setColour(isInsideLoop ? juce::Colour(0xff5aa6b8) : juce::Colour(0xff35545c));
+                else if (isCurrentStep)
+                    g.setColour(juce::Colour(0xff5a5124));
+                else if (isReferenceOctaveNote)
+                    g.setColour(isInsideLoop ? juce::Colour(0xff263f45) : juce::Colour(0xff1c292d));
+                else
+                    g.setColour(isInsideLoop ? juce::Colour(0xff26363b) : juce::Colour(0xff1c292d));
+
+                g.fillRoundedRectangle(cellBox.toFloat(), 2.0f);
+
+                if (isNoteCell)
+                {
+                    g.setColour(isCurrentStep ? juce::Colours::black : juce::Colours::white);
+                    g.drawRoundedRectangle(cellBox.toFloat().reduced(1.0f), 2.0f, 1.0f);
+                }
+                else
+                {
+                    g.setColour(juce::Colour(0xff3b5056));
+                    g.drawRoundedRectangle(cellBox.toFloat(), 2.0f, 0.5f);
+                }
+
+                if (isSelectedColumn && isNoteCell)
+                {
+                    g.setColour(juce::Colours::white);
+                    g.drawRoundedRectangle(cellBox.toFloat().reduced(1.0f), 2.0f, 2.0f);
+                }
+            }
+        }
 
         g.setColour(juce::Colour(0xffcfe8ef));
-        g.setFont(13.0f);
-        g.drawFittedText(transformText,
-            transformBox,
-            juce::Justification::centredLeft,
-            2);
+        g.setFont(12.0f);
+
+        juce::String melodyInfo;
+        melodyInfo << "MIDI notes 48-71    P" << (displayedPattern + 1)
+            << "    Grid: " << gridStepCount << " steps";
+
+        g.drawFittedText(melodyInfo,
+            getPatternMatrixArea().withTrimmedTop(getPatternMatrixArea().getHeight() - 18),
+            juce::Justification::centredRight,
+            1);
+    }
+    else
+    {
+        //==========================================================================
+        // Pattern matrix
+
+        auto matrixArea = getPatternMatrixArea();
+
+        const int rowHeight = 42;
+        const int rowGap = 8;
+        const int labelWidth = 34;
+        const int transformWidth = 132;
+        const int labelGap = 8;
+        const int transformGap = 12;
+
+        for (int patternIndex = 0; patternIndex < 3; ++patternIndex)
+        {
+            const int rowY = matrixArea.getY() + patternIndex * (rowHeight + rowGap);
+
+            auto labelBox = juce::Rectangle<int>(matrixArea.getX(),
+                rowY,
+                labelWidth,
+                rowHeight);
+
+            const bool isActivePattern = activePattern == patternIndex;
+            const bool isPendingPattern = pendingPattern == patternIndex;
+            const bool isSelectedPattern = displayedPattern == patternIndex;
+
+            if (isActivePattern)
+                g.setColour(juce::Colour(0xfff5c542));
+            else if (isSelectedPattern)
+                g.setColour(juce::Colour(0xff5aa6b8));
+            else
+                g.setColour(juce::Colour(0xff26363b));
+
+            g.fillRoundedRectangle(labelBox.toFloat(), 5.0f);
+
+            if (isPendingPattern)
+            {
+                g.setColour(juce::Colour(0xffff9f43));
+                g.drawRoundedRectangle(labelBox.toFloat().reduced(1.0f), 5.0f, 2.0f);
+            }
+            else
+            {
+                g.setColour(juce::Colours::white);
+                g.drawRoundedRectangle(labelBox.toFloat(), 5.0f, 1.0f);
+            }
+
+            g.setColour(isActivePattern ? juce::Colours::black : juce::Colours::white);
+            g.setFont(15.0f);
+            g.drawFittedText("P" + juce::String(patternIndex + 1),
+                labelBox.reduced(3),
+                juce::Justification::centred,
+                1);
+
+            for (int stepIndex = 0; stepIndex < gridStepCount; ++stepIndex)
+            {
+                auto stepBox = getPatternStepBox(patternIndex, stepIndex);
+
+                const int loopLength = juce::jmin(audioProcessor.getPatternLoopLength(patternIndex), gridStepCount);
+                const bool isInsideLoop = stepIndex < loopLength;
+
+                const bool hasNote = audioProcessor.stepHasNote(patternIndex, stepIndex);
+                const bool isCurrentStep = activePattern == patternIndex && currentStep == (stepIndex + 1);
+                const bool isSelectedStep = selectedEditPattern == patternIndex && selectedStep == stepIndex;
+
+                if (isCurrentStep)
+                {
+                    g.setColour(juce::Colour(0xfff5c542));
+                }
+                else if (hasNote)
+                {
+                    g.setColour(isInsideLoop
+                        ? juce::Colour(0xff5aa6b8)
+                        : juce::Colour(0xff35545c));
+                }
+                else
+                {
+                    g.setColour(isInsideLoop
+                        ? juce::Colour(0xff26363b)
+                        : juce::Colour(0xff1c292d));
+                }
+
+                g.fillRoundedRectangle(stepBox.toFloat(), 5.0f);
+
+                if (isCurrentStep)
+                    g.setColour(juce::Colours::black);
+                else if (isInsideLoop)
+                    g.setColour(juce::Colours::white);
+                else
+                    g.setColour(juce::Colour(0xff607278));
+
+                g.drawRoundedRectangle(stepBox.toFloat(), 5.0f, 1.0f);
+
+                if (isSelectedStep)
+                {
+                    g.setColour(juce::Colours::white);
+                    g.drawRoundedRectangle(stepBox.toFloat().reduced(1.5f), 5.0f, 3.0f);
+                }
+
+                if (isCurrentStep)
+                    g.setColour(juce::Colours::black);
+                else if (isInsideLoop)
+                    g.setColour(juce::Colours::white);
+                else
+                    g.setColour(juce::Colour(0xff8fa4aa));
+
+                g.setFont(12.0f);
+
+                juce::String stepText;
+                stepText << (stepIndex + 1);
+
+                if (hasNote)
+                {
+                    const int note = audioProcessor.getStepNote(patternIndex, stepIndex);
+                    const int duration = audioProcessor.getStepDurationSteps(patternIndex, stepIndex);
+
+                    stepText << "\n" << note;
+                    stepText << "\n" << "d" << duration;
+                }
+                else
+                {
+                    stepText << "\n-";
+                }
+
+                g.drawFittedText(stepText,
+                    stepBox.reduced(2),
+                    juce::Justification::centred,
+                    3);
+            }
+
+            const int transformX = matrixArea.getRight() - transformWidth;
+
+            auto transformBox = juce::Rectangle<int>(transformX,
+                rowY,
+                transformWidth,
+                rowHeight);
+
+            const int rowTranspose = audioProcessor.getPatternTranspose(patternIndex);
+            const int rowRotation = audioProcessor.getPatternRotation(patternIndex);
+            const int rowLength = juce::jmin(audioProcessor.getPatternLoopLength(patternIndex), gridStepCount);
+            const bool rowInverted = audioProcessor.getPatternInverted(patternIndex);
+
+            juce::String transformText;
+            transformText << "Tr " << transposeTextFromValue(rowTranspose)
+                << " Rot " << rotationTextFromValue(rowRotation)
+                << " Len " << rowLength
+                << "\nInv " << inversionTextFromValue(rowInverted);
+
+            juce::ignoreUnused(transformGap);
+
+            g.setColour(juce::Colour(0xffcfe8ef));
+            g.setFont(13.0f);
+            g.drawFittedText(transformText,
+                transformBox,
+                juce::Justification::centredLeft,
+                2);
+        }
+
     }
 
     bounds.removeFromTop(154);
