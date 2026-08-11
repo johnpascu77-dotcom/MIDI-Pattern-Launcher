@@ -1282,7 +1282,8 @@ void MidiPatternLauncherAudioProcessor::getStateInformation(juce::MemoryBlock& d
 {
     juce::XmlElement root("MidiPatternLauncher");
 
-    root.setAttribute("version", "1.12.0");
+    root.setAttribute("version", "1.14.0");
+    root.setAttribute("gridMode", getGridModeIndex());
 
     for (int patternIndex = 0; patternIndex < numPatterns; ++patternIndex)
     {
@@ -1386,12 +1387,23 @@ void MidiPatternLauncherAudioProcessor::setStateInformation(const void* data, in
         }
     }
 
+    bool restoredApvtsState = false;
+
     if (auto* apvtsXml = xmlState->getChildByName("APVTS"))
     {
         auto apvtsState = juce::ValueTree::fromXml(*apvtsXml);
 
         if (apvtsState.isValid())
+        {
             apvts.replaceState(apvtsState);
+            restoredApvtsState = true;
+        }
+    }
+
+    if (!restoredApvtsState && xmlState->hasAttribute("gridMode"))
+    {
+        const int restoredGridMode = juce::jlimit(0, 1, xmlState->getIntAttribute("gridMode", 0));
+        setParameterPlainValueNotifyingHost("gridModeParam", static_cast<float>(restoredGridMode));
     }
 
     activePattern = -1;
