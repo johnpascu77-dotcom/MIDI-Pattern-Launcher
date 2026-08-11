@@ -27,7 +27,10 @@ private:
     juce::Rectangle<int> getPatternMatrixArea() const;
     juce::Rectangle<int> getPatternStepBox(int patternIndex, int stepIndex) const;
 
+    bool getPatternStepAtPosition(juce::Point<int> position, int& patternIndexOut, int& stepIndexOut) const;
     void updateSelectedStepFromMousePosition(juce::Point<int> position);
+    void toggleStepAtMousePosition(juce::Point<int> position);
+
     void setupButtonCallbacks();
     void updateEditPatternButtonHighlights();
 
@@ -93,4 +96,3 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MidiPatternLauncherAudioProcessorEditor)
 };
-

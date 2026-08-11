@@ -442,6 +442,29 @@ juce::Rectangle<int> MidiPatternLauncherAudioProcessorEditor::getPatternStepBox(
     return juce::Rectangle<int>(x, y, stepWidth, rowHeight);
 }
 
+bool MidiPatternLauncherAudioProcessorEditor::getPatternStepAtPosition(
+    juce::Point<int> position,
+    int& patternIndexOut,
+    int& stepIndexOut) const
+{
+    for (int patternIndex = 0; patternIndex < 3; ++patternIndex)
+    {
+        for (int stepIndex = 0; stepIndex < 16; ++stepIndex)
+        {
+            if (getPatternStepBox(patternIndex, stepIndex).contains(position))
+            {
+                patternIndexOut = patternIndex;
+                stepIndexOut = stepIndex;
+                return true;
+            }
+        }
+    }
+
+    patternIndexOut = -1;
+    stepIndexOut = -1;
+    return false;
+}
+
 void MidiPatternLauncherAudioProcessorEditor::updateSelectedStepFromMousePosition(juce::Point<int> position)
 {
     auto matrixArea = getPatternMatrixArea();
@@ -487,9 +510,42 @@ void MidiPatternLauncherAudioProcessorEditor::updateSelectedStepFromMousePositio
     }
 }
 
+void MidiPatternLauncherAudioProcessorEditor::toggleStepAtMousePosition(juce::Point<int> position)
+{
+    int patternIndex = -1;
+    int stepIndex = -1;
+
+    if (!getPatternStepAtPosition(position, patternIndex, stepIndex))
+        return;
+
+    selectedEditPattern = patternIndex;
+    selectedStep = stepIndex;
+
+    audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+
+    if (audioProcessor.stepHasNote(patternIndex, stepIndex))
+        audioProcessor.clearStep(patternIndex, stepIndex);
+    else
+        audioProcessor.makeStepNote(patternIndex, stepIndex);
+
+    updateEditPatternButtonHighlights();
+    repaint();
+}
+
 void MidiPatternLauncherAudioProcessorEditor::mouseDown(const juce::MouseEvent& event)
 {
-    updateSelectedStepFromMousePosition(event.getPosition());
+    const auto position = event.getPosition();
+
+    int patternIndex = -1;
+    int stepIndex = -1;
+
+    if (getPatternStepAtPosition(position, patternIndex, stepIndex))
+    {
+        toggleStepAtMousePosition(position);
+        return;
+    }
+
+    updateSelectedStepFromMousePosition(position);
 }
 
 void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
