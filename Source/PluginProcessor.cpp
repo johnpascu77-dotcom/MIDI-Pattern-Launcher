@@ -42,6 +42,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout MidiPatternLauncherAudioProc
         juce::StringArray{ "Binary 16", "Ternary 12" },
         0));
     
+    parameters.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("editorViewModeParam", 1),
+        "Editor View Mode",
+        juce::StringArray{ "Matrix", "Melody" },
+        0));
+
     parameters.push_back(std::make_unique<juce::AudioParameterInt>(
         juce::ParameterID("targetStepParam", 1),
         "Target Step",
@@ -127,6 +133,16 @@ int MidiPatternLauncherAudioProcessor::getGridStepCount() const
 bool MidiPatternLauncherAudioProcessor::isTernaryGridMode() const
 {
     return getGridModeIndex() == 1;
+}
+
+int MidiPatternLauncherAudioProcessor::getEditorViewModeIndex() const
+{
+    return juce::jlimit(0, 1, getChoiceParameterIndex("editorViewModeParam"));
+}
+
+bool MidiPatternLauncherAudioProcessor::isMelodyPaintMode() const
+{
+    return getEditorViewModeIndex() == 1;
 }
 
 void MidiPatternLauncherAudioProcessor::updateAutomationParametersForPattern(int patternIndex)

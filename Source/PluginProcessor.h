@@ -46,6 +46,9 @@ public:
     int getGridStepCount() const;
     bool isTernaryGridMode() const;
 
+    int getEditorViewModeIndex() const;
+    bool isMelodyPaintMode() const;
+
     int getDisplayActivePattern() const;
     int getDisplayPendingPattern() const;
     int getDisplayCurrentStep() const;

@@ -84,6 +84,7 @@ private:
     juce::Label targetTitleLabel;
     juce::Label targetPatternLabel;
     juce::Label gridModeLabel;
+    juce::Label editorViewModeLabel;
     juce::Label targetStepLabel;
     juce::Label targetNoteLabel;
     juce::Label targetVelocityLabel;
@@ -92,6 +93,7 @@ private:
 
     juce::ComboBox targetPatternBox;
     juce::ComboBox gridModeBox;
+    juce::ComboBox editorViewModeBox;
     juce::Slider targetStepSlider;
 
     juce::Slider targetNoteSlider;
@@ -101,6 +103,7 @@ private:
 
     std::unique_ptr<ComboBoxAttachment> targetPatternAttachment;
     std::unique_ptr<ComboBoxAttachment> gridModeAttachment;
+    std::unique_ptr<ComboBoxAttachment> editorViewModeAttachment;
     std::unique_ptr<SliderAttachment> targetStepAttachment;
     std::unique_ptr<SliderAttachment> targetNoteAttachment;
     std::unique_ptr<SliderAttachment> targetVelocityAttachment;

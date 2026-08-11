@@ -46,6 +46,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     setupLabel(targetTitleLabel, "Host Target Step Parameters");
     setupLabel(targetPatternLabel, "Pattern");
     setupLabel(gridModeLabel, "Grid");
+    setupLabel(editorViewModeLabel, "View");
     setupLabel(targetStepLabel, "Step");
     setupLabel(targetNoteLabel, "Note");
     setupLabel(targetVelocityLabel, "Velocity");
@@ -55,6 +56,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     addAndMakeVisible(targetTitleLabel);
     addAndMakeVisible(targetPatternLabel);
     addAndMakeVisible(gridModeLabel);
+    addAndMakeVisible(editorViewModeLabel);
     addAndMakeVisible(targetStepLabel);
     addAndMakeVisible(targetNoteLabel);
     addAndMakeVisible(targetVelocityLabel);
@@ -67,6 +69,9 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     gridModeBox.addItem("Binary 16", 1);
     gridModeBox.addItem("Ternary 12", 2);
+
+    editorViewModeBox.addItem("Matrix", 1);
+    editorViewModeBox.addItem("Melody", 2);
 
     auto setupSlider = [](juce::Slider& slider)
         {
@@ -84,6 +89,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     addAndMakeVisible(targetPatternBox);
     addAndMakeVisible(gridModeBox);
+    addAndMakeVisible(editorViewModeBox);
     addAndMakeVisible(targetStepSlider);
     addAndMakeVisible(targetNoteSlider);
     addAndMakeVisible(targetVelocitySlider);
@@ -97,6 +103,9 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     gridModeAttachment = std::make_unique<ComboBoxAttachment>(
         apvts, "gridModeParam", gridModeBox);
+
+    editorViewModeAttachment = std::make_unique<ComboBoxAttachment>(
+        apvts, "editorViewModeParam", editorViewModeBox);
 
     targetStepAttachment = std::make_unique<SliderAttachment>(
         apvts, "targetStepParam", targetStepSlider);
@@ -672,7 +681,7 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.14.0 - True Metric Grid",
+    g.drawFittedText("v1.15.0 - Melody Paint Mode",
         titleRow,
         juce::Justification::centredRight,
         1);
@@ -1049,8 +1058,8 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
     auto targetRow1 = bounds.removeFromTop(32);
 
     const int targetGap = 8;
-    const int targetLabelWidth = 62;
-    const int targetControlWidth = 160;
+    const int targetLabelWidth = 52;
+    const int targetControlWidth = 150;
 
     targetPatternLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));
     targetPatternBox.setBounds(targetRow1.removeFromLeft(targetControlWidth));
@@ -1060,12 +1069,12 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
     gridModeBox.setBounds(targetRow1.removeFromLeft(targetControlWidth));
     targetRow1.removeFromLeft(targetGap);
 
-    targetStepLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));
-    targetStepSlider.setBounds(targetRow1.removeFromLeft(targetControlWidth));
+    editorViewModeLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));
+    editorViewModeBox.setBounds(targetRow1.removeFromLeft(targetControlWidth));
     targetRow1.removeFromLeft(targetGap);
 
-    targetEnabledLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));
-    targetEnabledButton.setBounds(targetRow1.removeFromLeft(targetControlWidth));
+    targetStepLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));
+    targetStepSlider.setBounds(targetRow1.removeFromLeft(targetControlWidth));
 
     bounds.removeFromTop(6);
 
