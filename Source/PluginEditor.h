@@ -83,6 +83,7 @@ private:
 
     juce::Label targetTitleLabel;
     juce::Label targetPatternLabel;
+    juce::Label gridModeLabel;
     juce::Label targetStepLabel;
     juce::Label targetNoteLabel;
     juce::Label targetVelocityLabel;
@@ -90,13 +91,16 @@ private:
     juce::Label targetEnabledLabel;
 
     juce::ComboBox targetPatternBox;
+    juce::ComboBox gridModeBox;
     juce::Slider targetStepSlider;
+
     juce::Slider targetNoteSlider;
     juce::Slider targetVelocitySlider;
     juce::Slider targetDurationSlider;
     juce::ToggleButton targetEnabledButton{ "Enabled" };
 
     std::unique_ptr<ComboBoxAttachment> targetPatternAttachment;
+    std::unique_ptr<ComboBoxAttachment> gridModeAttachment;
     std::unique_ptr<SliderAttachment> targetStepAttachment;
     std::unique_ptr<SliderAttachment> targetNoteAttachment;
     std::unique_ptr<SliderAttachment> targetVelocityAttachment;

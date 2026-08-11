@@ -45,6 +45,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     setupLabel(targetTitleLabel, "Host Target Step Parameters");
     setupLabel(targetPatternLabel, "Pattern");
+    setupLabel(gridModeLabel, "Grid");
     setupLabel(targetStepLabel, "Step");
     setupLabel(targetNoteLabel, "Note");
     setupLabel(targetVelocityLabel, "Velocity");
@@ -53,6 +54,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     addAndMakeVisible(targetTitleLabel);
     addAndMakeVisible(targetPatternLabel);
+    addAndMakeVisible(gridModeLabel);
     addAndMakeVisible(targetStepLabel);
     addAndMakeVisible(targetNoteLabel);
     addAndMakeVisible(targetVelocityLabel);
@@ -62,6 +64,9 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     targetPatternBox.addItem("Pattern 1", 1);
     targetPatternBox.addItem("Pattern 2", 2);
     targetPatternBox.addItem("Pattern 3", 3);
+
+    gridModeBox.addItem("Binary 16", 1);
+    gridModeBox.addItem("Ternary 12", 2);
 
     auto setupSlider = [](juce::Slider& slider)
         {
@@ -78,6 +83,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     setupSlider(targetDurationSlider);
 
     addAndMakeVisible(targetPatternBox);
+    addAndMakeVisible(gridModeBox);
     addAndMakeVisible(targetStepSlider);
     addAndMakeVisible(targetNoteSlider);
     addAndMakeVisible(targetVelocitySlider);
@@ -88,6 +94,9 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     targetPatternAttachment = std::make_unique<ComboBoxAttachment>(
         apvts, "targetPatternParam", targetPatternBox);
+
+    gridModeAttachment = std::make_unique<ComboBoxAttachment>(
+        apvts, "gridModeParam", gridModeBox);
 
     targetStepAttachment = std::make_unique<SliderAttachment>(
         apvts, "targetStepParam", targetStepSlider);
@@ -1033,6 +1042,10 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
 
     targetPatternLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));
     targetPatternBox.setBounds(targetRow1.removeFromLeft(targetControlWidth));
+    targetRow1.removeFromLeft(targetGap);
+
+    gridModeLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));
+    gridModeBox.setBounds(targetRow1.removeFromLeft(targetControlWidth));
     targetRow1.removeFromLeft(targetGap);
 
     targetStepLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));

@@ -35,7 +35,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout MidiPatternLauncherAudioProc
         "Target Pattern",
         juce::StringArray{ "Pattern 1", "Pattern 2", "Pattern 3" },
         0));
-
+    
+    parameters.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("gridModeParam", 1),
+        "Grid Mode",
+        juce::StringArray{ "Binary 16", "Ternary 12" },
+        0));
+    
     parameters.push_back(std::make_unique<juce::AudioParameterInt>(
         juce::ParameterID("targetStepParam", 1),
         "Target Step",
