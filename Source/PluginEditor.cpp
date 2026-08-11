@@ -45,6 +45,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     setupLabel(targetTitleLabel, "Host Target Step Parameters");
     setupLabel(targetPatternLabel, "Pattern");
+    setupLabel(gridModeLabel, "Grid");
     setupLabel(targetStepLabel, "Step");
     setupLabel(targetNoteLabel, "Note");
     setupLabel(targetVelocityLabel, "Velocity");
@@ -53,6 +54,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     addAndMakeVisible(targetTitleLabel);
     addAndMakeVisible(targetPatternLabel);
+    addAndMakeVisible(gridModeLabel);
     addAndMakeVisible(targetStepLabel);
     addAndMakeVisible(targetNoteLabel);
     addAndMakeVisible(targetVelocityLabel);
@@ -62,6 +64,9 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     targetPatternBox.addItem("Pattern 1", 1);
     targetPatternBox.addItem("Pattern 2", 2);
     targetPatternBox.addItem("Pattern 3", 3);
+
+    gridModeBox.addItem("Binary 16", 1);
+    gridModeBox.addItem("Ternary 12", 2);
 
     auto setupSlider = [](juce::Slider& slider)
         {
@@ -78,6 +83,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     setupSlider(targetDurationSlider);
 
     addAndMakeVisible(targetPatternBox);
+    addAndMakeVisible(gridModeBox);
     addAndMakeVisible(targetStepSlider);
     addAndMakeVisible(targetNoteSlider);
     addAndMakeVisible(targetVelocitySlider);
@@ -88,6 +94,9 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     targetPatternAttachment = std::make_unique<ComboBoxAttachment>(
         apvts, "targetPatternParam", targetPatternBox);
+
+    gridModeAttachment = std::make_unique<ComboBoxAttachment>(
+        apvts, "gridModeParam", gridModeBox);
 
     targetStepAttachment = std::make_unique<SliderAttachment>(
         apvts, "targetStepParam", targetStepSlider);
@@ -410,10 +419,7 @@ juce::Rectangle<int> MidiPatternLauncherAudioProcessorEditor::getPatternStepBox(
 {
     auto matrixArea = getPatternMatrixArea();
 
-    const int numberOfPatterns = 3;
-    const int numberOfSteps = 16;
-
-    juce::ignoreUnused(numberOfPatterns);
+    const int numberOfSteps = audioProcessor.getGridStepCount();
 
     const int rowHeight = 42;
     const int rowGap = 8;
@@ -447,9 +453,11 @@ bool MidiPatternLauncherAudioProcessorEditor::getPatternStepAtPosition(
     int& patternIndexOut,
     int& stepIndexOut) const
 {
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
     for (int patternIndex = 0; patternIndex < 3; ++patternIndex)
     {
-        for (int stepIndex = 0; stepIndex < 16; ++stepIndex)
+        for (int stepIndex = 0; stepIndex < gridStepCount; ++stepIndex)
         {
             if (getPatternStepBox(patternIndex, stepIndex).contains(position))
             {
@@ -468,6 +476,8 @@ bool MidiPatternLauncherAudioProcessorEditor::getPatternStepAtPosition(
 void MidiPatternLauncherAudioProcessorEditor::updateSelectedStepFromMousePosition(juce::Point<int> position)
 {
     auto matrixArea = getPatternMatrixArea();
+
+    const int gridStepCount = audioProcessor.getGridStepCount();
 
     const int rowHeight = 42;
     const int rowGap = 8;
@@ -493,7 +503,7 @@ void MidiPatternLauncherAudioProcessorEditor::updateSelectedStepFromMousePositio
             return;
         }
 
-        for (int stepIndex = 0; stepIndex < 16; ++stepIndex)
+        for (int stepIndex = 0; stepIndex < gridStepCount; ++stepIndex)
         {
             if (getPatternStepBox(patternIndex, stepIndex).contains(position))
             {
@@ -550,8 +560,11 @@ void MidiPatternLauncherAudioProcessorEditor::setPatternStepValue(
     int stepIndex,
     bool shouldHaveNote)
 {
-    if (patternIndex < 0 || patternIndex >= 3 || stepIndex < 0 || stepIndex >= 16)
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (patternIndex < 0 || patternIndex >= 3 || stepIndex < 0 || stepIndex >= gridStepCount)
         return;
+
 
     if (lastEditedPattern == patternIndex && lastEditedStep == stepIndex)
         return;
@@ -620,6 +633,14 @@ void MidiPatternLauncherAudioProcessorEditor::mouseUp(const juce::MouseEvent& ev
 
 void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 {
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (selectedStep >= gridStepCount)
+    {
+        selectedStep = gridStepCount - 1;
+        audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+    }
+
     g.fillAll(juce::Colour(0xff2f3f45));
 
     const int activePattern = audioProcessor.getDisplayActivePattern();
@@ -627,8 +648,8 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
     const int currentStep = audioProcessor.getDisplayCurrentStep();
     const int currentBar = audioProcessor.getDisplayCurrentBar();
     const int activeLoopLength = activePattern >= 0
-        ? audioProcessor.getPatternLoopLength(activePattern)
-        : 16;
+        ? juce::jmin(audioProcessor.getPatternLoopLength(activePattern), gridStepCount)
+        : gridStepCount;
 
     const int displayedPattern = getDisplayedPattern();
     const int patternTranspose = audioProcessor.getPatternTranspose(displayedPattern);
@@ -651,7 +672,7 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.12.0 - Independent lengths",
+    g.drawFittedText("v1.14.0 - True Metric Grid",
         titleRow,
         juce::Justification::centredRight,
         1);
@@ -744,11 +765,11 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
             juce::Justification::centred,
             1);
 
-        for (int stepIndex = 0; stepIndex < 16; ++stepIndex)
+        for (int stepIndex = 0; stepIndex < gridStepCount; ++stepIndex)
         {
             auto stepBox = getPatternStepBox(patternIndex, stepIndex);
 
-            const int loopLength = audioProcessor.getPatternLoopLength(patternIndex);
+            const int loopLength = juce::jmin(audioProcessor.getPatternLoopLength(patternIndex), gridStepCount);
             const bool isInsideLoop = stepIndex < loopLength;
 
             const bool hasNote = audioProcessor.stepHasNote(patternIndex, stepIndex);
@@ -829,7 +850,7 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 
         const int rowTranspose = audioProcessor.getPatternTranspose(patternIndex);
         const int rowRotation = audioProcessor.getPatternRotation(patternIndex);
-        const int rowLength = audioProcessor.getPatternLoopLength(patternIndex);
+        const int rowLength = juce::jmin(audioProcessor.getPatternLoopLength(patternIndex), gridStepCount);
         const bool rowInverted = audioProcessor.getPatternInverted(patternIndex);
 
         juce::String transformText;
@@ -1033,6 +1054,10 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
 
     targetPatternLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));
     targetPatternBox.setBounds(targetRow1.removeFromLeft(targetControlWidth));
+    targetRow1.removeFromLeft(targetGap);
+
+    gridModeLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));
+    gridModeBox.setBounds(targetRow1.removeFromLeft(targetControlWidth));
     targetRow1.removeFromLeft(targetGap);
 
     targetStepLabel.setBounds(targetRow1.removeFromLeft(targetLabelWidth));
