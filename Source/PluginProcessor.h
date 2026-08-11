@@ -1,15 +1,15 @@
-#pragma once
+﻿#pragma once
 
 #include <JuceHeader.h>
 #include <vector>
 #include <array>
 #include <atomic>
 
-class NewProjectAudioProcessor : public juce::AudioProcessor
+class MidiPatternLauncherAudioProcessor : public juce::AudioProcessor
 {
 public:
-    NewProjectAudioProcessor();
-    ~NewProjectAudioProcessor() override;
+    MidiPatternLauncherAudioProcessor();
+    ~MidiPatternLauncherAudioProcessor() override;
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -82,6 +82,11 @@ public:
     void changePatternRotation(int patternIndex, int deltaSteps);
     void resetPatternRotation(int patternIndex);
     int getRotatedSourceStepIndex(int patternIndex, int playbackStepIndex) const;
+
+    int getPatternLoopLength(int patternIndex) const;
+    void setPatternLoopLength(int patternIndex, int length);
+    void changePatternLoopLength(int patternIndex, int deltaSteps);
+
     bool getPatternInverted(int patternIndex) const;
     void togglePatternInverted(int patternIndex);
     void setPatternInverted(int patternIndex, bool shouldBeInverted);
@@ -108,7 +113,14 @@ private:
     };
 
     static constexpr int numPatterns = 3;
+
+    // Maximum stored cells per pattern. v1.12.0 adds independent loop lengths,
+    // but each pattern still stores 16 editable steps.
     static constexpr int patternLength = 16;
+
+    static constexpr int minPatternLoopLength = 1;
+    static constexpr int defaultPatternLoopLength = patternLength;
+
     static constexpr int stepsPerBar = 16;
     static constexpr double stepLengthInPpq = 0.25;
 
@@ -135,6 +147,15 @@ private:
     // 0 = no rotation.
     // +1 means stored material sounds one step later.
     std::array<int, numPatterns> patternRotation{ 0, 0, 0 };
+
+    // v1.12.0: independent playback loop lengths.
+    // Stored pattern data remains 16 steps, but each row may loop over 1..16 steps.
+    std::array<int, numPatterns> patternLoopLength{
+        defaultPatternLoopLength,
+        defaultPatternLoopLength,
+        defaultPatternLoopLength
+    };
+
     // v1.5.0: non-destructive pitch inversion.
     // false = normal playback.
     // true  = mirror stored notes around inversionAxisNote before transposition.
@@ -152,6 +173,7 @@ private:
 
     juce::String getTransposeParameterID(int patternIndex) const;
     juce::String getRotationParameterID(int patternIndex) const;
+    juce::String getLengthParameterID(int patternIndex) const;
     juce::String getInversionParameterID(int patternIndex) const;
 
     int lastActivePatternParam = 0;
@@ -182,5 +204,6 @@ private:
 
     bool wasHostPlaying = false;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NewProjectAudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MidiPatternLauncherAudioProcessor)
 };
+

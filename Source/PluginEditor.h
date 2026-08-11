@@ -1,14 +1,14 @@
-#pragma once
+﻿#pragma once
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
-class NewProjectAudioProcessorEditor : public juce::AudioProcessorEditor,
+class MidiPatternLauncherAudioProcessorEditor : public juce::AudioProcessorEditor,
     private juce::Timer
 {
 public:
-    explicit NewProjectAudioProcessorEditor(NewProjectAudioProcessor&);
-    ~NewProjectAudioProcessorEditor() override;
+    explicit MidiPatternLauncherAudioProcessorEditor(MidiPatternLauncherAudioProcessor&);
+    ~MidiPatternLauncherAudioProcessorEditor() override;
 
     void paint(juce::Graphics&) override;
     void resized() override;
@@ -35,7 +35,7 @@ private:
     using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
 
-    NewProjectAudioProcessor& audioProcessor;
+    MidiPatternLauncherAudioProcessor& audioProcessor;
 
     int selectedStep = 0;
     int selectedEditPattern = 0;
@@ -91,5 +91,6 @@ private:
     std::unique_ptr<SliderAttachment> targetDurationAttachment;
     std::unique_ptr<ButtonAttachment> targetEnabledAttachment;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NewProjectAudioProcessorEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MidiPatternLauncherAudioProcessorEditor)
 };
+
