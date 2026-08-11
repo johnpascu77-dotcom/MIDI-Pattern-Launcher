@@ -850,8 +850,9 @@ void MidiPatternLauncherAudioProcessor::resetPatternRotation(int patternIndex)
 int MidiPatternLauncherAudioProcessor::getRotatedSourceStepIndex(int patternIndex,
     int playbackStepIndex) const
 {
-    const int loopLength = getPatternLoopLength(patternIndex);
+    const int loopLength = juce::jmin(getPatternLoopLength(patternIndex), getGridStepCount());
     const int rotation = getPatternRotation(patternIndex);
+
     const int effectiveRotation = ((rotation % loopLength) + loopLength) % loopLength;
 
     return ((playbackStepIndex - effectiveRotation) % loopLength + loopLength) % loopLength;
@@ -1139,23 +1140,26 @@ void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& b
 
     const double ppqEnd = ppqStart + (ppqPerSample * static_cast<double> (numSamples));
 
-    //==========================================================================
-    // 4. Determine which sixteenth-note grid lines occur inside this block.
+    const int gridStepCount = getGridStepCount();
+    const double gridStepLengthInPpq = 4.0 / static_cast<double> (gridStepCount);
 
-    const int firstStepInBlock = static_cast<int> (std::ceil(ppqStart / stepLengthInPpq));
-    const int lastStepInBlock = static_cast<int> (std::floor(ppqEnd / stepLengthInPpq));
+    //==============================================================================
+    // 4. Determine which metric grid lines occur inside this block.
+
+    const int firstStepInBlock = static_cast<int> (std::ceil(ppqStart / gridStepLengthInPpq));
+    const int lastStepInBlock = static_cast<int> (std::floor(ppqEnd / gridStepLengthInPpq));
 
     constexpr int midiChannel = 1;
 
     for (int step = firstStepInBlock; step <= lastStepInBlock; ++step)
     {
-        const double stepPpq = static_cast<double> (step) * stepLengthInPpq;
+        const double stepPpq = static_cast<double> (step) * gridStepLengthInPpq;
 
         int sampleOffset = static_cast<int> (std::round((stepPpq - ppqStart) / ppqPerSample));
         sampleOffset = juce::jlimit(0, numSamples - 1, sampleOffset);
 
-        const int currentBar = step / stepsPerBar;
-        const bool isAtBarStart = (step % stepsPerBar) == 0;
+        const int currentBar = step / gridStepCount;
+        const bool isAtBarStart = (step % gridStepCount) == 0;
 
         displayCurrentBar.store(currentBar + 1);
         displayActivePattern.store(activePattern);
@@ -1225,7 +1229,7 @@ void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& b
             continue;
 
         const int stepsSincePatternStart = step - patternStartStep;
-        const int activeLoopLength = getPatternLoopLength(activePattern);
+        const int activeLoopLength = juce::jmin(getPatternLoopLength(activePattern), gridStepCount);
         const int playbackStepIndex = ((stepsSincePatternStart % activeLoopLength) + activeLoopLength) % activeLoopLength;
         displayCurrentStep.store(playbackStepIndex + 1);
         // v1.4.0/v1.12.0:
