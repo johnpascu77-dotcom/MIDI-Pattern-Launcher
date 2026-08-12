@@ -1,4 +1,4 @@
-﻿#include "PluginProcessor.h"
+#include "PluginProcessor.h"
 #include "PluginEditor.h"
 
 MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor(MidiPatternLauncherAudioProcessor& p)
@@ -415,13 +415,15 @@ juce::Rectangle<int> MidiPatternLauncherAudioProcessorEditor::getPatternMatrixAr
 {
     auto bounds = getLocalBounds().reduced(24);
 
-    bounds.removeFromTop(32);   // title/version row
-    bounds.removeFromTop(24);   // compact status row
-    bounds.removeFromTop(14);
-    bounds.removeFromTop(24);   // matrix title
-    bounds.removeFromTop(8);
+    bounds.removeFromTop(26);   // title/version row
+    bounds.removeFromTop(18);   // compact status row
+    bounds.removeFromTop(4);
+    bounds.removeFromTop(22);   // matrix title
+    bounds.removeFromTop(4);
 
-    return bounds.removeFromTop(154);
+    const int editGridHeight = 330;
+
+    return bounds.removeFromTop(editGridHeight);
 }
 
 juce::Rectangle<int> MidiPatternLauncherAudioProcessorEditor::getPatternStepBox(int patternIndex, int stepIndex) const
@@ -430,7 +432,7 @@ juce::Rectangle<int> MidiPatternLauncherAudioProcessorEditor::getPatternStepBox(
 
     const int numberOfSteps = audioProcessor.getGridStepCount();
 
-    const int rowHeight = 42;
+    const int rowHeight = 64;
     const int rowGap = 8;
     const int labelWidth = 34;
     const int transformWidth = 132;
@@ -543,6 +545,163 @@ bool MidiPatternLauncherAudioProcessorEditor::getMelodyPaintCellAtPosition(
     return false;
 }
 
+
+bool MidiPatternLauncherAudioProcessorEditor::melodyStepRangeOverlapsExistingNote(
+    int patternIndex,
+    int startStep,
+    int durationSteps,
+    int ignoredStepIndex) const
+{
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (patternIndex < 0 || patternIndex >= 3)
+        return true;
+
+    if (startStep < 0 || startStep >= gridStepCount)
+        return true;
+
+    durationSteps = juce::jlimit(1, gridStepCount, durationSteps);
+
+    const int newStart = startStep;
+    const int newEnd = juce::jmin(gridStepCount - 1, startStep + durationSteps - 1);
+
+    for (int stepIndex = 0; stepIndex < gridStepCount; ++stepIndex)
+    {
+        if (stepIndex == ignoredStepIndex)
+            continue;
+
+        if (!audioProcessor.stepHasNote(patternIndex, stepIndex))
+            continue;
+
+        const int existingDuration = juce::jlimit(
+            1,
+            gridStepCount,
+            audioProcessor.getStepDurationSteps(patternIndex, stepIndex));
+
+        const int existingStart = stepIndex;
+        const int existingEnd = juce::jmin(gridStepCount - 1, existingStart + existingDuration - 1);
+
+        const bool rangesOverlap = newStart <= existingEnd && existingStart <= newEnd;
+
+        if (rangesOverlap)
+            return true;
+    }
+
+    return false;
+}
+
+int MidiPatternLauncherAudioProcessorEditor::getMaxNonOverlappingMelodyDuration(
+    int patternIndex,
+    int startStep,
+    int requestedDuration,
+    int ignoredStepIndex) const
+{
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (startStep < 0 || startStep >= gridStepCount)
+        return 1;
+
+    requestedDuration = juce::jlimit(1, gridStepCount - startStep, requestedDuration);
+
+    int maxDuration = requestedDuration;
+
+    for (int duration = 1; duration <= requestedDuration; ++duration)
+    {
+        if (melodyStepRangeOverlapsExistingNote(patternIndex, startStep, duration, ignoredStepIndex))
+            break;
+
+        maxDuration = duration;
+    }
+
+    return juce::jlimit(1, gridStepCount - startStep, maxDuration);
+}
+
+int MidiPatternLauncherAudioProcessorEditor::findMelodyNoteStartAtCell(
+    int patternIndex,
+    int stepIndex,
+    int midiNote) const
+{
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (patternIndex < 0 || patternIndex >= 3)
+        return -1;
+
+    if (stepIndex < 0 || stepIndex >= gridStepCount)
+        return -1;
+
+    for (int candidateStart = 0; candidateStart < gridStepCount; ++candidateStart)
+    {
+        if (!audioProcessor.stepHasNote(patternIndex, candidateStart))
+            continue;
+
+        const int candidateNote = audioProcessor.getStepNote(patternIndex, candidateStart);
+
+        if (candidateNote != midiNote)
+            continue;
+
+        const int candidateDuration = juce::jlimit(
+            1,
+            gridStepCount,
+            audioProcessor.getStepDurationSteps(patternIndex, candidateStart));
+
+        const int candidateEnd = juce::jmin(gridStepCount - 1, candidateStart + candidateDuration - 1);
+
+        if (stepIndex >= candidateStart && stepIndex <= candidateEnd)
+            return candidateStart;
+    }
+
+    return -1;
+}
+
+void MidiPatternLauncherAudioProcessorEditor::applyMelodyNoteEditSafely(
+    int patternIndex,
+    int stepIndex,
+    int midiNote,
+    int velocity,
+    int durationSteps,
+    int ignoredStepIndex)
+{
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (patternIndex < 0 || patternIndex >= 3)
+        return;
+
+    if (stepIndex < 0 || stepIndex >= gridStepCount)
+        return;
+
+    midiNote = juce::jlimit(0, 127, midiNote);
+    velocity = juce::jlimit(1, 127, velocity);
+    durationSteps = juce::jlimit(1, gridStepCount - stepIndex, durationSteps);
+
+    const int safeDuration = getMaxNonOverlappingMelodyDuration(
+        patternIndex,
+        stepIndex,
+        durationSteps,
+        ignoredStepIndex);
+
+    if (melodyStepRangeOverlapsExistingNote(patternIndex, stepIndex, safeDuration, ignoredStepIndex))
+        return;
+
+    audioProcessor.setStepValues(
+        patternIndex,
+        stepIndex,
+        midiNote,
+        velocity,
+        safeDuration);
+
+    selectedEditPattern = patternIndex;
+    selectedStep = stepIndex;
+
+    audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+    audioProcessor.updateTargetParametersFromStep();
+
+    lastEditedPattern = patternIndex;
+    lastEditedStep = stepIndex;
+
+    updateEditPatternButtonHighlights();
+    repaint();
+}
+
 void MidiPatternLauncherAudioProcessorEditor::setMelodyPaintCellValue(
     int stepIndex,
     int midiNote,
@@ -564,23 +723,57 @@ void MidiPatternLauncherAudioProcessorEditor::setMelodyPaintCellValue(
     if (lastEditedPattern == patternIndex && lastEditedStep == stepIndex && shouldHaveNote)
         return;
 
+    const int existingNoteStart = findMelodyNoteStartAtCell(patternIndex, stepIndex, midiNote);
+
+    if (shouldHaveNote)
+    {
+        // If the user clicks inside an already-sustained note block, select the
+        // original note start instead of creating a duplicate hidden note.
+        if (existingNoteStart >= 0)
+        {
+            selectedEditPattern = patternIndex;
+            selectedStep = existingNoteStart;
+
+            audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+            audioProcessor.updateTargetParametersFromStep();
+
+            lastEditedPattern = patternIndex;
+            lastEditedStep = existingNoteStart;
+
+            updateEditPatternButtonHighlights();
+            repaint();
+            return;
+        }
+
+        // Full monophonic overlap protection: do not insert a new note if its
+        // start cell is already covered by any existing note duration.
+        if (melodyStepRangeOverlapsExistingNote(patternIndex, stepIndex, 1, -1))
+            return;
+
+        const int velocity = juce::jlimit(1, 127, audioProcessor.getTargetVelocity());
+        const int requestedDuration = juce::jlimit(1, gridStepCount - stepIndex, audioProcessor.getTargetDurationSteps());
+
+        applyMelodyNoteEditSafely(
+            patternIndex,
+            stepIndex,
+            midiNote,
+            velocity,
+            requestedDuration,
+            stepIndex);
+
+        return;
+    }
+
+    // Erase behavior: if right-clicking anywhere inside a sustained note block,
+    // erase the original note start.
+    if (existingNoteStart >= 0)
+        stepIndex = existingNoteStart;
+
     selectedEditPattern = patternIndex;
     selectedStep = stepIndex;
 
     audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
-
-    if (shouldHaveNote)
-    {
-        const int velocity = juce::jlimit(1, 127, audioProcessor.getTargetVelocity());
-        const int duration = juce::jlimit(1, gridStepCount, audioProcessor.getTargetDurationSteps());
-
-        audioProcessor.setStepValues(patternIndex, stepIndex, midiNote, velocity, duration);
-    }
-    else
-    {
-        audioProcessor.clearStep(patternIndex, stepIndex);
-    }
-
+    audioProcessor.clearStep(patternIndex, stepIndex);
     audioProcessor.updateTargetParametersFromStep();
 
     lastEditedPattern = patternIndex;
@@ -616,31 +809,53 @@ void MidiPatternLauncherAudioProcessorEditor::startMelodyDurationDrag(
         return;
 
     melodyDragPattern = getDisplayedPattern();
-    melodyDragStartStep = stepIndex;
-    melodyDragStartNote = midiNote;
+
+    const int existingNoteStart = findMelodyNoteStartAtCell(melodyDragPattern, stepIndex, midiNote);
+
+    if (existingNoteStart >= 0)
+    {
+        melodyDragStartStep = existingNoteStart;
+        melodyDragStartNote = audioProcessor.getStepNote(melodyDragPattern, existingNoteStart);
+    }
+    else
+    {
+        if (melodyStepRangeOverlapsExistingNote(melodyDragPattern, stepIndex, 1, -1))
+        {
+            melodyEditDragMode = MelodyEditDragMode::None;
+            isDraggingMelodyDuration = false;
+            return;
+        }
+
+        melodyDragStartStep = stepIndex;
+        melodyDragStartNote = midiNote;
+    }
+
+    melodyDragOriginalStep = melodyDragStartStep;
+    melodyDragOriginalNote = melodyDragStartNote;
+
+    melodyDragOriginalDuration = audioProcessor.stepHasNote(melodyDragPattern, melodyDragStartStep)
+        ? juce::jlimit(1, gridStepCount, audioProcessor.getStepDurationSteps(melodyDragPattern, melodyDragStartStep))
+        : 1;
+
+    melodyDragOriginalVelocity = audioProcessor.stepHasNote(melodyDragPattern, melodyDragStartStep)
+        ? juce::jlimit(1, 127, audioProcessor.getStepVelocity(melodyDragPattern, melodyDragStartStep))
+        : juce::jlimit(1, 127, audioProcessor.getTargetVelocity());
+
     isDraggingMelodyDuration = true;
+    melodyEditDragMode = MelodyEditDragMode::CreateOrResize;
 
     selectedEditPattern = melodyDragPattern;
     selectedStep = melodyDragStartStep;
 
     audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
 
-    const int velocity = juce::jlimit(1, 127, audioProcessor.getTargetVelocity());
-
-    audioProcessor.setStepValues(
+    applyMelodyNoteEditSafely(
         melodyDragPattern,
         melodyDragStartStep,
         melodyDragStartNote,
-        velocity,
-        1);
-
-    audioProcessor.updateTargetParametersFromStep();
-
-    lastEditedPattern = melodyDragPattern;
-    lastEditedStep = melodyDragStartStep;
-
-    updateEditPatternButtonHighlights();
-    repaint();
+        melodyDragOriginalVelocity,
+        juce::jmax(1, melodyDragOriginalDuration),
+        melodyDragStartStep);
 }
 
 void MidiPatternLauncherAudioProcessorEditor::updateMelodyDragDurationAtMousePosition(
@@ -666,14 +881,130 @@ void MidiPatternLauncherAudioProcessorEditor::updateMelodyDragDurationAtMousePos
     juce::ignoreUnused(hoverMidiNote);
 
     const int endStep = juce::jlimit(melodyDragStartStep, gridStepCount - 1, hoverStepIndex);
-    const int duration = juce::jlimit(1, gridStepCount, endStep - melodyDragStartStep + 1);
+    const int requestedDuration = juce::jlimit(
+        1,
+        gridStepCount - melodyDragStartStep,
+        endStep - melodyDragStartStep + 1);
 
-    const int velocity = juce::jlimit(1, 127, audioProcessor.getStepVelocity(melodyDragPattern, melodyDragStartStep));
+    const int velocity = audioProcessor.stepHasNote(melodyDragPattern, melodyDragStartStep)
+        ? juce::jlimit(1, 127, audioProcessor.getStepVelocity(melodyDragPattern, melodyDragStartStep))
+        : melodyDragOriginalVelocity;
+
+    applyMelodyNoteEditSafely(
+        melodyDragPattern,
+        melodyDragStartStep,
+        melodyDragStartNote,
+        velocity,
+        requestedDuration,
+        melodyDragStartStep);
+}
+
+void MidiPatternLauncherAudioProcessorEditor::updateMelodyDragPitchAtMousePosition(
+    juce::Point<int> position)
+{
+    if (!isDraggingMelodyDuration)
+        return;
+
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (melodyDragPattern < 0 || melodyDragPattern >= 3)
+        return;
+
+    if (melodyDragStartStep < 0 || melodyDragStartStep >= gridStepCount)
+        return;
+
+    int hoverStepIndex = -1;
+    int hoverMidiNote = -1;
+
+    if (!getMelodyPaintCellAtPosition(position, hoverStepIndex, hoverMidiNote))
+        return;
+
+    const int velocity = audioProcessor.stepHasNote(melodyDragPattern, melodyDragStartStep)
+        ? juce::jlimit(1, 127, audioProcessor.getStepVelocity(melodyDragPattern, melodyDragStartStep))
+        : melodyDragOriginalVelocity;
+
+    int requestedDuration = audioProcessor.stepHasNote(melodyDragPattern, melodyDragStartStep)
+        ? juce::jlimit(1, gridStepCount - melodyDragStartStep, audioProcessor.getStepDurationSteps(melodyDragPattern, melodyDragStartStep))
+        : melodyDragOriginalDuration;
+
+    if (melodyEditDragMode == MelodyEditDragMode::MoveExistingPitchAndDuration)
+    {
+        const int endStep = juce::jlimit(melodyDragStartStep, gridStepCount - 1, hoverStepIndex);
+
+        requestedDuration = juce::jlimit(
+            1,
+            gridStepCount - melodyDragStartStep,
+            endStep - melodyDragStartStep + 1);
+    }
+
+    applyMelodyNoteEditSafely(
+        melodyDragPattern,
+        melodyDragStartStep,
+        hoverMidiNote,
+        velocity,
+        requestedDuration,
+        melodyDragStartStep);
+}
+
+void MidiPatternLauncherAudioProcessorEditor::updateMelodyDragMoveAtMousePosition(
+    juce::Point<int> position)
+{
+    if (!isDraggingMelodyDuration)
+        return;
+
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (melodyDragPattern < 0 || melodyDragPattern >= 3)
+        return;
+
+    if (melodyDragOriginalStep < 0 || melodyDragOriginalStep >= gridStepCount)
+        return;
+
+    int hoverStepIndex = -1;
+    int hoverMidiNote = -1;
+
+    if (!getMelodyPaintCellAtPosition(position, hoverStepIndex, hoverMidiNote))
+        return;
+
+    juce::ignoreUnused(hoverMidiNote);
+
+    const int duration = juce::jlimit(
+        1,
+        gridStepCount,
+        melodyDragOriginalDuration);
+
+    const int maxStartStep = juce::jmax(0, gridStepCount - duration);
+
+    const int requestedStartStep = juce::jlimit(
+        0,
+        maxStartStep,
+        hoverStepIndex - melodyDragClickOffsetSteps);
+
+    if (requestedStartStep == melodyDragStartStep)
+        return;
+
+    if (melodyStepRangeOverlapsExistingNote(
+            melodyDragPattern,
+            requestedStartStep,
+            duration,
+            melodyDragOriginalStep))
+    {
+        return;
+    }
+
+    const int note = juce::jlimit(0, 127, melodyDragOriginalNote);
+    const int velocity = juce::jlimit(1, 127, melodyDragOriginalVelocity);
+
+    if (melodyDragStartStep >= 0 && melodyDragStartStep < gridStepCount)
+        audioProcessor.clearStep(melodyDragPattern, melodyDragStartStep);
+
+    melodyDragStartStep = requestedStartStep;
+    melodyDragStartNote = note;
 
     audioProcessor.setStepValues(
         melodyDragPattern,
         melodyDragStartStep,
-        melodyDragStartNote,
+        note,
         velocity,
         duration);
 
@@ -683,6 +1014,10 @@ void MidiPatternLauncherAudioProcessorEditor::updateMelodyDragDurationAtMousePos
     audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
     audioProcessor.updateTargetParametersFromStep();
 
+    lastEditedPattern = melodyDragPattern;
+    lastEditedStep = melodyDragStartStep;
+
+    updateEditPatternButtonHighlights();
     repaint();
 }
 
@@ -692,7 +1027,7 @@ void MidiPatternLauncherAudioProcessorEditor::updateSelectedStepFromMousePositio
 
     const int gridStepCount = audioProcessor.getGridStepCount();
 
-    const int rowHeight = 42;
+    const int rowHeight = 64;
     const int rowGap = 8;
     const int labelWidth = 34;
 
@@ -755,6 +1090,226 @@ void MidiPatternLauncherAudioProcessorEditor::toggleStepAtMousePosition(juce::Po
     repaint();
 }
 
+int MidiPatternLauncherAudioProcessorEditor::getMatrixPitchForMousePosition(
+    int patternIndex,
+    int stepIndex,
+    juce::Point<int> position) const
+{
+    static constexpr int matrixLowestMidiNote = 48;
+    static constexpr int matrixHighestMidiNote = 71;
+    static constexpr int matrixNoteRange = matrixHighestMidiNote - matrixLowestMidiNote;
+
+    if (patternIndex < 0 || patternIndex >= 3)
+        return matrixLowestMidiNote;
+
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (stepIndex < 0 || stepIndex >= gridStepCount)
+        return matrixLowestMidiNote;
+
+    const auto stepBox = getPatternStepBox(patternIndex, stepIndex);
+
+    if (stepBox.getHeight() <= 1)
+        return matrixLowestMidiNote;
+
+    const int relativeY = juce::jlimit(
+        0,
+        stepBox.getHeight() - 1,
+        position.y - stepBox.getY());
+
+    const float normalisedFromTop = static_cast<float>(relativeY)
+        / static_cast<float>(stepBox.getHeight() - 1);
+
+    const int noteOffsetFromTop = juce::roundToInt(normalisedFromTop * static_cast<float>(matrixNoteRange));
+
+    return juce::jlimit(
+        matrixLowestMidiNote,
+        matrixHighestMidiNote,
+        matrixHighestMidiNote - noteOffsetFromTop);
+}
+
+void MidiPatternLauncherAudioProcessorEditor::setMatrixStepPitchAtMousePosition(
+    juce::Point<int> position)
+{
+    int patternIndex = -1;
+    int stepIndex = -1;
+
+    if (!getPatternStepAtPosition(position, patternIndex, stepIndex))
+        return;
+
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (patternIndex < 0 || patternIndex >= 3 || stepIndex < 0 || stepIndex >= gridStepCount)
+        return;
+
+    if (!audioProcessor.stepHasNote(patternIndex, stepIndex))
+        return;
+
+    const int midiNote = getMatrixPitchForMousePosition(patternIndex, stepIndex, position);
+    const int velocity = juce::jlimit(1, 127, audioProcessor.getStepVelocity(patternIndex, stepIndex));
+    const int duration = juce::jlimit(
+        1,
+        gridStepCount - stepIndex,
+        audioProcessor.getStepDurationSteps(patternIndex, stepIndex));
+
+    audioProcessor.setStepValues(
+        patternIndex,
+        stepIndex,
+        midiNote,
+        velocity,
+        duration);
+
+    selectedEditPattern = patternIndex;
+    selectedStep = stepIndex;
+
+    audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+    audioProcessor.updateTargetParametersFromStep();
+
+    lastEditedPattern = patternIndex;
+    lastEditedStep = stepIndex;
+
+    updateEditPatternButtonHighlights();
+    repaint();
+}
+
+int MidiPatternLauncherAudioProcessorEditor::getMatrixVelocityForMousePosition(
+    int patternIndex,
+    int stepIndex,
+    juce::Point<int> position) const
+{
+    if (patternIndex < 0 || patternIndex >= 3)
+        return 100;
+
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (stepIndex < 0 || stepIndex >= gridStepCount)
+        return 100;
+
+    const auto stepBox = getPatternStepBox(patternIndex, stepIndex);
+
+    if (stepBox.getHeight() <= 1)
+        return 100;
+
+    const int relativeY = juce::jlimit(
+        0,
+        stepBox.getHeight() - 1,
+        position.y - stepBox.getY());
+
+    const float normalisedFromTop = static_cast<float>(relativeY)
+        / static_cast<float>(stepBox.getHeight() - 1);
+
+    const int velocityOffsetFromTop = juce::roundToInt(normalisedFromTop * 126.0f);
+
+    return juce::jlimit(1, 127, 127 - velocityOffsetFromTop);
+}
+
+void MidiPatternLauncherAudioProcessorEditor::setMatrixStepVelocityAtMousePosition(
+    juce::Point<int> position)
+{
+    int patternIndex = -1;
+    int stepIndex = -1;
+
+    if (!getPatternStepAtPosition(position, patternIndex, stepIndex))
+        return;
+
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (patternIndex < 0 || patternIndex >= 3 || stepIndex < 0 || stepIndex >= gridStepCount)
+        return;
+
+    if (!audioProcessor.stepHasNote(patternIndex, stepIndex))
+        return;
+
+    const int midiNote = audioProcessor.getStepNote(patternIndex, stepIndex);
+    const int velocity = getMatrixVelocityForMousePosition(patternIndex, stepIndex, position);
+    const int duration = juce::jlimit(
+        1,
+        gridStepCount - stepIndex,
+        audioProcessor.getStepDurationSteps(patternIndex, stepIndex));
+
+    audioProcessor.setStepValues(
+        patternIndex,
+        stepIndex,
+        midiNote,
+        velocity,
+        duration);
+
+    selectedEditPattern = patternIndex;
+    selectedStep = stepIndex;
+
+    audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+    audioProcessor.updateTargetParametersFromStep();
+
+    lastEditedPattern = patternIndex;
+    lastEditedStep = stepIndex;
+
+    updateEditPatternButtonHighlights();
+    repaint();
+}
+
+void MidiPatternLauncherAudioProcessorEditor::moveMatrixStepAtMousePosition(
+    juce::Point<int> position)
+{
+    if (matrixMoveSourcePattern < 0 || matrixMoveSourcePattern >= 3)
+        return;
+
+    const int gridStepCount = audioProcessor.getGridStepCount();
+
+    if (matrixMoveSourceStep < 0 || matrixMoveSourceStep >= gridStepCount)
+        return;
+
+    int targetPattern = -1;
+    int targetStep = -1;
+
+    if (!getPatternStepAtPosition(position, targetPattern, targetStep))
+        return;
+
+    if (targetPattern != matrixMoveSourcePattern)
+        return;
+
+    if (targetStep < 0 || targetStep >= gridStepCount)
+        return;
+
+    if (targetStep == matrixMoveSourceStep)
+        return;
+
+    if (targetPattern == lastEditedPattern && targetStep == lastEditedStep)
+        return;
+
+    if (audioProcessor.stepHasNote(targetPattern, targetStep))
+        return;
+
+    const int safeDuration = juce::jlimit(
+        1,
+        gridStepCount - targetStep,
+        matrixMoveDuration);
+
+    audioProcessor.setStepValues(
+        targetPattern,
+        targetStep,
+        matrixMoveNote,
+        matrixMoveVelocity,
+        safeDuration);
+
+    setPatternStepValue(matrixMoveSourcePattern, matrixMoveSourceStep, false);
+
+    selectedEditPattern = targetPattern;
+    selectedStep = targetStep;
+
+    audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+    audioProcessor.updateTargetParametersFromStep();
+
+    matrixMoveSourcePattern = targetPattern;
+    matrixMoveSourceStep = targetStep;
+    matrixMoveDuration = safeDuration;
+
+    lastEditedPattern = targetPattern;
+    lastEditedStep = targetStep;
+
+    updateEditPatternButtonHighlights();
+    repaint();
+}
+
 void MidiPatternLauncherAudioProcessorEditor::setStepAtMousePosition(
     juce::Point<int> position,
     bool shouldHaveNote)
@@ -766,6 +1321,9 @@ void MidiPatternLauncherAudioProcessorEditor::setStepAtMousePosition(
         return;
 
     setPatternStepValue(patternIndex, stepIndex, shouldHaveNote);
+
+    if (shouldHaveNote)
+        setMatrixStepPitchAtMousePosition(position);
 }
 
 void MidiPatternLauncherAudioProcessorEditor::setPatternStepValue(
@@ -807,6 +1365,9 @@ void MidiPatternLauncherAudioProcessorEditor::mouseDown(const juce::MouseEvent& 
 
     lastEditedPattern = -1;
     lastEditedStep = -1;
+    matrixEditDragMode = MatrixEditDragMode::None;
+    matrixMoveSourcePattern = -1;
+    matrixMoveSourceStep = -1;
 
     if (audioProcessor.isMelodyPaintMode())
     {
@@ -814,13 +1375,27 @@ void MidiPatternLauncherAudioProcessorEditor::mouseDown(const juce::MouseEvent& 
         int melodyMidiNote = -1;
 
         isDraggingMelodyDuration = false;
+        melodyEditDragMode = MelodyEditDragMode::None;
         melodyDragPattern = -1;
         melodyDragStartStep = -1;
         melodyDragStartNote = -1;
+        melodyDragOriginalStep = -1;
+        melodyDragOriginalNote = -1;
+        melodyDragOriginalDuration = 1;
+        melodyDragOriginalVelocity = 100;
+        melodyDragClickOffsetSteps = 0;
 
         if (getMelodyPaintCellAtPosition(position, melodyStepIndex, melodyMidiNote))
         {
             const bool rightClickErase = event.mods.isRightButtonDown();
+            const bool shiftDown = event.mods.isShiftDown();
+            const bool altDown = event.mods.isAltDown();
+
+            const int melodyPattern = getDisplayedPattern();
+            const int existingNoteStart = findMelodyNoteStartAtCell(
+                melodyPattern,
+                melodyStepIndex,
+                melodyMidiNote);
 
             if (rightClickErase)
             {
@@ -828,10 +1403,56 @@ void MidiPatternLauncherAudioProcessorEditor::mouseDown(const juce::MouseEvent& 
                 isDraggingPatternStepEdit = true;
                 setMelodyPaintCellValue(melodyStepIndex, melodyMidiNote, false);
             }
+            else if ((altDown || shiftDown) && existingNoteStart >= 0)
+            {
+                melodyDragPattern = melodyPattern;
+                melodyDragStartStep = existingNoteStart;
+                melodyDragStartNote = audioProcessor.getStepNote(melodyDragPattern, melodyDragStartStep);
+
+                melodyDragOriginalStep = melodyDragStartStep;
+                melodyDragOriginalNote = melodyDragStartNote;
+                melodyDragOriginalDuration = juce::jlimit(
+                    1,
+                    audioProcessor.getGridStepCount(),
+                    audioProcessor.getStepDurationSteps(melodyDragPattern, melodyDragStartStep));
+                melodyDragOriginalVelocity = juce::jlimit(
+                    1,
+                    127,
+                    audioProcessor.getStepVelocity(melodyDragPattern, melodyDragStartStep));
+
+                melodyDragClickOffsetSteps = juce::jlimit(
+                    0,
+                    juce::jmax(0, melodyDragOriginalDuration - 1),
+                    melodyStepIndex - existingNoteStart);
+
+                isDraggingMelodyDuration = true;
+                isDraggingPatternStepEdit = false;
+
+                if (altDown)
+                {
+                    melodyEditDragMode = shiftDown
+                        ? MelodyEditDragMode::MoveExistingPitchAndDuration
+                        : MelodyEditDragMode::MoveExistingPitch;
+                }
+                else
+                {
+                    melodyEditDragMode = MelodyEditDragMode::MoveExistingTime;
+                }
+
+                selectedEditPattern = melodyDragPattern;
+                selectedStep = melodyDragStartStep;
+
+                audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+                audioProcessor.updateTargetParametersFromStep();
+
+                updateEditPatternButtonHighlights();
+                repaint();
+            }
             else
             {
                 dragPaintValue = true;
                 isDraggingPatternStepEdit = false;
+
                 startMelodyDurationDrag(melodyStepIndex, melodyMidiNote);
             }
 
@@ -848,12 +1469,73 @@ void MidiPatternLauncherAudioProcessorEditor::mouseDown(const juce::MouseEvent& 
     if (getPatternStepAtPosition(position, patternIndex, stepIndex))
     {
         const bool rightClickErase = event.mods.isRightButtonDown();
-        const bool currentlyHasNote = audioProcessor.stepHasNote(patternIndex, stepIndex);
+        const bool altDown = event.mods.isAltDown();
+        const bool ctrlDown = event.mods.isCtrlDown();
+        const bool shiftDown = event.mods.isShiftDown();
 
-        dragPaintValue = rightClickErase ? false : !currentlyHasNote;
+        // Matrix mode is paint/edit oriented:
+        // - Left click creates/keeps a note and applies pitch from mouse Y.
+        // - Right click is the dedicated erase gesture.
+        // - Alt click/drag pitch-paints existing notes only.
+        // - Ctrl click/drag velocity-paints existing notes only.
+        // - Shift drag moves an existing note horizontally within the same row.
+        if (shiftDown && !rightClickErase && !audioProcessor.stepHasNote(patternIndex, stepIndex))
+        {
+            matrixEditDragMode = MatrixEditDragMode::None;
+            isDraggingPatternStepEdit = false;
+            return;
+        }
+
+        if (shiftDown && !rightClickErase && audioProcessor.stepHasNote(patternIndex, stepIndex))
+            matrixEditDragMode = MatrixEditDragMode::MoveExistingStep;
+        else if (ctrlDown && !rightClickErase)
+            matrixEditDragMode = MatrixEditDragMode::VelocityExistingOnly;
+        else if (altDown && !rightClickErase)
+            matrixEditDragMode = MatrixEditDragMode::PitchExistingOnly;
+        else
+            matrixEditDragMode = MatrixEditDragMode::PaintOrErase;
+
+        dragPaintValue = !rightClickErase;
         isDraggingPatternStepEdit = true;
 
-        setPatternStepValue(patternIndex, stepIndex, dragPaintValue);
+        if (matrixEditDragMode == MatrixEditDragMode::MoveExistingStep)
+        {
+            const int gridStepCount = audioProcessor.getGridStepCount();
+
+            matrixMoveSourcePattern = patternIndex;
+            matrixMoveSourceStep = stepIndex;
+            matrixMoveNote = audioProcessor.getStepNote(patternIndex, stepIndex);
+            matrixMoveVelocity = juce::jlimit(1, 127, audioProcessor.getStepVelocity(patternIndex, stepIndex));
+            matrixMoveDuration = juce::jlimit(
+                1,
+                gridStepCount - stepIndex,
+                audioProcessor.getStepDurationSteps(patternIndex, stepIndex));
+
+            selectedEditPattern = patternIndex;
+            selectedStep = stepIndex;
+
+            audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
+            audioProcessor.updateTargetParametersFromStep();
+
+            updateEditPatternButtonHighlights();
+            repaint();
+        }
+        else if (matrixEditDragMode == MatrixEditDragMode::PitchExistingOnly)
+        {
+            setMatrixStepPitchAtMousePosition(position);
+        }
+        else if (matrixEditDragMode == MatrixEditDragMode::VelocityExistingOnly)
+        {
+            setMatrixStepVelocityAtMousePosition(position);
+        }
+        else
+        {
+            setPatternStepValue(patternIndex, stepIndex, dragPaintValue);
+
+            if (dragPaintValue)
+                setMatrixStepPitchAtMousePosition(position);
+        }
+
         return;
     }
 
@@ -867,6 +1549,19 @@ void MidiPatternLauncherAudioProcessorEditor::mouseDrag(const juce::MouseEvent& 
     {
         if (isDraggingMelodyDuration)
         {
+            if (melodyEditDragMode == MelodyEditDragMode::MoveExistingTime)
+            {
+                updateMelodyDragMoveAtMousePosition(event.getPosition());
+                return;
+            }
+
+            if (melodyEditDragMode == MelodyEditDragMode::MoveExistingPitch
+                || melodyEditDragMode == MelodyEditDragMode::MoveExistingPitchAndDuration)
+            {
+                updateMelodyDragPitchAtMousePosition(event.getPosition());
+                return;
+            }
+
             updateMelodyDragDurationAtMousePosition(event.getPosition());
             return;
         }
@@ -883,6 +1578,24 @@ void MidiPatternLauncherAudioProcessorEditor::mouseDrag(const juce::MouseEvent& 
     if (!isDraggingPatternStepEdit)
         return;
 
+    if (matrixEditDragMode == MatrixEditDragMode::PitchExistingOnly)
+    {
+        setMatrixStepPitchAtMousePosition(event.getPosition());
+        return;
+    }
+
+    if (matrixEditDragMode == MatrixEditDragMode::VelocityExistingOnly)
+    {
+        setMatrixStepVelocityAtMousePosition(event.getPosition());
+        return;
+    }
+
+    if (matrixEditDragMode == MatrixEditDragMode::MoveExistingStep)
+    {
+        moveMatrixStepAtMousePosition(event.getPosition());
+        return;
+    }
+
     setStepAtMousePosition(event.getPosition(), dragPaintValue);
 }
 
@@ -891,11 +1604,20 @@ void MidiPatternLauncherAudioProcessorEditor::mouseUp(const juce::MouseEvent& ev
     juce::ignoreUnused(event);
 
     isDraggingPatternStepEdit = false;
+    matrixEditDragMode = MatrixEditDragMode::None;
+    matrixMoveSourcePattern = -1;
+    matrixMoveSourceStep = -1;
     isDraggingMelodyDuration = false;
+    melodyEditDragMode = MelodyEditDragMode::None;
 
     melodyDragPattern = -1;
     melodyDragStartStep = -1;
     melodyDragStartNote = -1;
+    melodyDragOriginalStep = -1;
+    melodyDragOriginalNote = -1;
+    melodyDragOriginalDuration = 1;
+    melodyDragOriginalVelocity = 100;
+    melodyDragClickOffsetSteps = 0;
 
     lastEditedPattern = -1;
     lastEditedStep = -1;
@@ -904,6 +1626,7 @@ void MidiPatternLauncherAudioProcessorEditor::mouseUp(const juce::MouseEvent& ev
 void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 {
     const int gridStepCount = audioProcessor.getGridStepCount();
+    const int editGridHeight = 330;
 
     if (selectedStep >= gridStepCount)
     {
@@ -931,7 +1654,7 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
     //==========================================================================
     // Compact title/header
 
-    auto titleRow = bounds.removeFromTop(32);
+    auto titleRow = bounds.removeFromTop(26);
 
     g.setColour(juce::Colours::white);
     g.setFont(22.0f);
@@ -942,12 +1665,12 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.15.0 - Melody Paint Mode",
+    g.drawFittedText("v1.17.5b - Matrix Step Move",
         titleRow,
         juce::Justification::centredRight,
         1);
 
-    auto statusRow = bounds.removeFromTop(24);
+    auto statusRow = bounds.removeFromTop(22);
 
     g.setColour(juce::Colour(0xffcfe8ef));
     g.setFont(15.0f);
@@ -963,7 +1686,7 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
         juce::Justification::centred,
         1);
 
-    bounds.removeFromTop(14);
+    bounds.removeFromTop(4);
 
     //==========================================================================
     // Pattern matrix title
@@ -979,11 +1702,11 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
         << " Step " << (selectedStep + 1);
 
     g.drawFittedText(matrixTitle,
-        bounds.removeFromTop(24),
+        bounds.removeFromTop(22),
         juce::Justification::centredLeft,
         1);
 
-    bounds.removeFromTop(8);
+    bounds.removeFromTop(4);
 
     //==========================================================================
     // Pattern matrix / Melody paint grid
@@ -1173,7 +1896,7 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 
         auto matrixArea = getPatternMatrixArea();
 
-        const int rowHeight = 42;
+        const int rowHeight = 64;
         const int rowGap = 8;
         const int labelWidth = 34;
         const int transformWidth = 132;
@@ -1280,10 +2003,11 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
                 if (hasNote)
                 {
                     const int note = audioProcessor.getStepNote(patternIndex, stepIndex);
+                    const int velocity = juce::jlimit(1, 127, audioProcessor.getStepVelocity(patternIndex, stepIndex));
                     const int duration = audioProcessor.getStepDurationSteps(patternIndex, stepIndex);
 
                     stepText << "\n" << note;
-                    stepText << "\n" << "d" << duration;
+                    stepText << "\n" << "v" << velocity << " d" << duration;
                 }
                 else
                 {
@@ -1326,14 +2050,80 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 
     }
 
-    bounds.removeFromTop(154);
-    bounds.removeFromTop(14);
+    bounds.removeFromTop(editGridHeight);
+    bounds.removeFromTop(4);
 
     //==========================================================================
     // Selected step editor display
 
     g.setColour(juce::Colour(0xff1f2d32));
-    auto editorBox = bounds.removeFromTop(62);
+    if (!audioProcessor.isMelodyPaintMode())
+    {
+        auto dictionaryArea = getPatternMatrixArea();
+
+        const int rowHeight = 64;
+        const int rowGap = 8;
+
+        const int dictionaryTop = dictionaryArea.getY() + (3 * rowHeight) + (2 * rowGap) + 18;
+        const int availableHeight = dictionaryArea.getBottom() - dictionaryTop - 6;
+        const int dictionaryHeight = juce::jlimit(72, 108, availableHeight);
+
+        auto dictionaryBox = juce::Rectangle<int>(
+            dictionaryArea.getX(),
+            dictionaryTop,
+            dictionaryArea.getWidth(),
+            dictionaryHeight).reduced(2, 0);
+
+        if (dictionaryBox.getHeight() > 64)
+        {
+            g.setColour(juce::Colour(0xff1c292d).withAlpha(0.92f));
+            g.fillRoundedRectangle(dictionaryBox.toFloat(), 8.0f);
+
+            g.setColour(juce::Colour(0xff3b5056));
+            g.drawRoundedRectangle(dictionaryBox.toFloat(), 8.0f, 1.0f);
+
+            auto textBox = dictionaryBox.reduced(14, 8);
+
+            g.setFont(juce::Font(13.0f, juce::Font::bold));
+            g.setColour(juce::Colour(0xffcfe8ef));
+            g.drawFittedText("Gesture Dictionary",
+                textBox.removeFromTop(18),
+                juce::Justification::centredLeft,
+                1);
+
+            g.setFont(12.0f);
+            g.setColour(juce::Colour(0xffedf6f8));
+
+            g.drawFittedText(
+                "Matrix: Left drag paint+pitch  |  Right drag erase  |  Alt drag pitch existing only",
+                textBox.removeFromTop(17),
+                juce::Justification::centredLeft,
+                1);
+
+            g.drawFittedText(
+                "Matrix: Ctrl drag velocity refine  |  Ctrl+Shift velocity paint  |  Shift drag move step",
+                textBox.removeFromTop(17),
+                juce::Justification::centredLeft,
+                1);
+
+            g.setColour(juce::Colour(0xffb8cbd0));
+
+            g.drawFittedText(
+                "Melody: Left empty create/length  |  Right note erase  |  Shift note move",
+                textBox.removeFromTop(17),
+                juce::Justification::centredLeft,
+                1);
+
+            g.drawFittedText(
+                "Melody: Alt note pitch  |  Alt+Shift pitch+length  |  Ctrl note velocity",
+                textBox.removeFromTop(17),
+                juce::Justification::centredLeft,
+                1);
+        }
+    }
+
+    auto editorBox = bounds.removeFromTop(42);
+    g.setColour(juce::Colour(0xff1c292d));
     g.fillRoundedRectangle(editorBox.toFloat(), 8.0f);
 
     const bool selectedHasNote = audioProcessor.stepHasNote(displayedPattern, selectedStep);
@@ -1350,7 +2140,7 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
         << " Step " << (selectedStep + 1) << "    ";
     editorText << "Tr: " << transposeTextFromValue(patternTranspose) << "    ";
     editorText << "Rot: " << rotationTextFromValue(patternRotation) << "    ";
-    editorText << "Inv: " << inversionTextFromValue(patternInverted) << "\n";
+    editorText << "Inv: " << inversionTextFromValue(patternInverted) << "    ";
 
     if (selectedHasNote)
     {
@@ -1382,14 +2172,15 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds().reduced(24);
 
-    bounds.removeFromTop(32);   // title/version row
-    bounds.removeFromTop(24);   // compact status row
-    bounds.removeFromTop(14);
-    bounds.removeFromTop(24);   // matrix title
-    bounds.removeFromTop(8);
-    bounds.removeFromTop(154);  // matrix area
-    bounds.removeFromTop(14);
-    bounds.removeFromTop(62);   // selected step display
+    bounds.removeFromTop(26);   // title/version row
+    bounds.removeFromTop(18);   // compact status row
+    bounds.removeFromTop(4);
+    bounds.removeFromTop(22);   // matrix title
+    bounds.removeFromTop(4);
+    const int editGridHeight = 330;
+    bounds.removeFromTop(editGridHeight);  // matrix/melody area
+    bounds.removeFromTop(4);
+    bounds.removeFromTop(42);   // selected step display
     bounds.removeFromTop(16);
 
     //==========================================================================
@@ -1493,7 +2284,7 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
 
     inversionToggleButton.setBounds(transformRow.removeFromLeft(transformButtonWidth));
 
-    bounds.removeFromTop(14);
+    bounds.removeFromTop(4);
 
     //==========================================================================
     // Host target parameters
@@ -1503,7 +2294,7 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
 
     bounds.removeFromTop(6);
 
-    auto targetRow1 = bounds.removeFromTop(32);
+    auto targetRow1 = bounds.removeFromTop(26);
 
     const int targetGap = 8;
     const int targetLabelWidth = 52;
@@ -1526,7 +2317,7 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
 
     bounds.removeFromTop(6);
 
-    auto targetRow2 = bounds.removeFromTop(32);
+    auto targetRow2 = bounds.removeFromTop(26);
 
     targetNoteLabel.setBounds(targetRow2.removeFromLeft(targetLabelWidth));
     targetNoteSlider.setBounds(targetRow2.removeFromLeft(targetControlWidth));
@@ -1539,4 +2330,5 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
     targetDurationLabel.setBounds(targetRow2.removeFromLeft(targetLabelWidth));
     targetDurationSlider.setBounds(targetRow2.removeFromLeft(targetControlWidth));
 }
+
 

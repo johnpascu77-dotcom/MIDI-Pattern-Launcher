@@ -36,10 +36,38 @@ private:
     void toggleStepAtMousePosition(juce::Point<int> position);
     void setStepAtMousePosition(juce::Point<int> position, bool shouldHaveNote);
     void setPatternStepValue(int patternIndex, int stepIndex, bool shouldHaveNote);
+    int getMatrixPitchForMousePosition(int patternIndex, int stepIndex, juce::Point<int> position) const;
+    void setMatrixStepPitchAtMousePosition(juce::Point<int> position);
+    int getMatrixVelocityForMousePosition(int patternIndex, int stepIndex, juce::Point<int> position) const;
+    void setMatrixStepVelocityAtMousePosition(juce::Point<int> position);
+    void moveMatrixStepAtMousePosition(juce::Point<int> position);
     void setMelodyPaintCellValue(int stepIndex, int midiNote, bool shouldHaveNote);
     void setMelodyPaintCellAtMousePosition(juce::Point<int> position, bool shouldHaveNote);
     void startMelodyDurationDrag(int stepIndex, int midiNote);
     void updateMelodyDragDurationAtMousePosition(juce::Point<int> position);
+    void updateMelodyDragPitchAtMousePosition(juce::Point<int> position);
+    void updateMelodyDragMoveAtMousePosition(juce::Point<int> position);
+
+    bool melodyStepRangeOverlapsExistingNote(int patternIndex,
+                                             int startStep,
+                                             int durationSteps,
+                                             int ignoredStepIndex) const;
+
+    int getMaxNonOverlappingMelodyDuration(int patternIndex,
+                                           int startStep,
+                                           int requestedDuration,
+                                           int ignoredStepIndex) const;
+
+    int findMelodyNoteStartAtCell(int patternIndex,
+                                  int stepIndex,
+                                  int midiNote) const;
+
+    void applyMelodyNoteEditSafely(int patternIndex,
+                                   int stepIndex,
+                                   int midiNote,
+                                   int velocity,
+                                   int durationSteps,
+                                   int ignoredStepIndex);
 
     void setupButtonCallbacks();
     void updateEditPatternButtonHighlights();
@@ -53,15 +81,50 @@ private:
     int selectedStep = 0;
     int selectedEditPattern = 0;
     
+    enum class MatrixEditDragMode
+    {
+        None,
+        PaintOrErase,
+        PitchExistingOnly,
+        VelocityExistingOnly,
+        MoveExistingStep
+    };
+
+    MatrixEditDragMode matrixEditDragMode = MatrixEditDragMode::None;
+
     bool isDraggingPatternStepEdit = false;
     bool dragPaintValue = true;
     int lastEditedPattern = -1;
     int lastEditedStep = -1;
 
+    int matrixMoveSourcePattern = -1;
+    int matrixMoveSourceStep = -1;
+    int matrixMoveNote = 60;
+    int matrixMoveVelocity = 100;
+    int matrixMoveDuration = 1;
+
+    enum class MelodyEditDragMode
+    {
+        None,
+        CreateOrResize,
+        ResizeExistingDuration,
+        MoveExistingTime,
+        MoveExistingPitch,
+        MoveExistingPitchAndDuration
+    };
+
+    MelodyEditDragMode melodyEditDragMode = MelodyEditDragMode::None;
+
     bool isDraggingMelodyDuration = false;
     int melodyDragPattern = -1;
     int melodyDragStartStep = -1;
     int melodyDragStartNote = -1;
+
+    int melodyDragOriginalStep = -1;
+    int melodyDragOriginalNote = -1;
+    int melodyDragOriginalDuration = 1;
+    int melodyDragOriginalVelocity = 100;
+    int melodyDragClickOffsetSteps = 0;
 
     juce::TextButton editPattern1Button{ "Edit P1" };
     juce::TextButton editPattern2Button{ "Edit P2" };
