@@ -1665,7 +1665,7 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.17.5b - Matrix Step Move",
+    g.drawFittedText("v1.17.6 - UI Polish",
         titleRow,
         juce::Justification::centredRight,
         1);
@@ -2095,30 +2095,20 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
             g.setColour(juce::Colour(0xffedf6f8));
 
             g.drawFittedText(
-                "Matrix: Left drag paint+pitch  |  Right drag erase  |  Alt drag pitch existing only",
+                "Matrix: Left paint+pitch | Right erase | Alt pitch existing | Ctrl velocity | Shift move",
                 textBox.removeFromTop(17),
                 juce::Justification::centredLeft,
                 1);
 
-            g.drawFittedText(
-                "Matrix: Ctrl drag velocity refine  |  Ctrl+Shift velocity paint  |  Shift drag move step",
-                textBox.removeFromTop(17),
-                juce::Justification::centredLeft,
-                1);
 
             g.setColour(juce::Colour(0xffb8cbd0));
 
             g.drawFittedText(
-                "Melody: Left empty create/length  |  Right note erase  |  Shift note move",
+                "Melody: Left create/length | Right erase | Shift move | Alt pitch | Alt+Shift pitch+length | Ctrl velocity",
                 textBox.removeFromTop(17),
                 juce::Justification::centredLeft,
                 1);
 
-            g.drawFittedText(
-                "Melody: Alt note pitch  |  Alt+Shift pitch+length  |  Ctrl note velocity",
-                textBox.removeFromTop(17),
-                juce::Justification::centredLeft,
-                1);
         }
     }
 
