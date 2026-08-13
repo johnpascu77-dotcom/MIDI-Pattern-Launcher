@@ -46,6 +46,8 @@ public:
     int getGridStepCount() const;
     bool isTernaryGridMode() const;
 
+    float getGlobalSwingAmount() const;
+
     int getEditorViewModeIndex() const;
     bool isMelodyPaintMode() const;
 
@@ -172,6 +174,7 @@ private:
 
     int getChoiceParameterIndex(const juce::String& parameterID) const;
     int getIntParameterValue(const juce::String& parameterID) const;
+    float getFloatParameterValue(const juce::String& parameterID) const;
     bool getBoolParameterValue(const juce::String& parameterID) const;
 
     void setParameterPlainValueNotifyingHost(const juce::String& parameterID, float plainValue);

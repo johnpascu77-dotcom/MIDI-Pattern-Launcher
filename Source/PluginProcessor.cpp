@@ -48,6 +48,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout MidiPatternLauncherAudioProc
         juce::StringArray{ "Matrix", "Melody" },
         0));
 
+    parameters.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("globalSwingParam", 1),
+        "Swing",
+        juce::NormalisableRange<float>(0.0f, 75.0f, 0.1f),
+        0.0f,
+        juce::AudioParameterFloatAttributes()
+            .withLabel("%")));
+
     parameters.push_back(std::make_unique<juce::AudioParameterInt>(
         juce::ParameterID("targetStepParam", 1),
         "Target Step",
@@ -133,6 +141,11 @@ int MidiPatternLauncherAudioProcessor::getGridStepCount() const
 bool MidiPatternLauncherAudioProcessor::isTernaryGridMode() const
 {
     return getGridModeIndex() == 1;
+}
+
+float MidiPatternLauncherAudioProcessor::getGlobalSwingAmount() const
+{
+    return juce::jlimit(0.0f, 75.0f, getFloatParameterValue("globalSwingParam"));
 }
 
 int MidiPatternLauncherAudioProcessor::getEditorViewModeIndex() const
@@ -318,6 +331,14 @@ int MidiPatternLauncherAudioProcessor::getIntParameterValue(const juce::String& 
     }
 
     return 0;
+}
+
+float MidiPatternLauncherAudioProcessor::getFloatParameterValue(const juce::String& parameterID) const
+{
+    if (auto* parameter = apvts.getRawParameterValue(parameterID))
+        return parameter->load();
+
+    return 0.0f;
 }
 
 bool MidiPatternLauncherAudioProcessor::getBoolParameterValue(const juce::String& parameterID) const
@@ -1265,10 +1286,29 @@ void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& b
 
             const int outputNote = applyPatternTransformsToNote(activePattern, currentStepData.note);
 
+            int noteOnSampleOffset = sampleOffset;
+
+            const float swingPercent = getGlobalSwingAmount();
+            if (swingPercent > 0.0f && (playbackStepIndex % 2) == 1)
+            {
+                const double swingFraction = static_cast<double>(swingPercent) / 100.0;
+                const double stepLengthInSamples = gridStepLengthInPpq / ppqPerSample;
+
+                // v1.18.0: Swing delays offbeat/odd loop-relative playback steps.
+                // 75% Swing means up to half a step of delay.
+                const int swingDelaySamples = static_cast<int>(
+                    std::round(stepLengthInSamples * 0.5 * swingFraction));
+
+                noteOnSampleOffset = juce::jlimit(
+                    0,
+                    juce::jmax(0, numSamples - 1),
+                    sampleOffset + swingDelaySamples);
+            }
+
             midiMessages.addEvent(juce::MidiMessage::noteOn(midiChannel,
-                outputNote,
-                stepVelocity),
-                sampleOffset);
+                    outputNote,
+                    stepVelocity),
+                noteOnSampleOffset);
 
             PendingNoteOff noteOff;
             noteOff.note = outputNote;
