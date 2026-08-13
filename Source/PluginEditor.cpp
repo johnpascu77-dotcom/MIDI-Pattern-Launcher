@@ -1692,7 +1692,7 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.19.0 - External Control",
+    g.drawFittedText("v1.24.0 - Composer Bridge",
         titleRow,
         juce::Justification::centredRight,
         1);
