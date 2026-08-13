@@ -1,4 +1,4 @@
-﻿#include "PluginProcessor.h"
+#include "PluginProcessor.h"
 #include "PluginEditor.h"
 
 #include <cmath>
@@ -1117,6 +1117,38 @@ void MidiPatternLauncherAudioProcessor::sendComposerBridgeResponse(juce::MidiBuf
         juce::jmax(0, sampleOffset));
 }
 
+void MidiPatternLauncherAudioProcessor::sendComposerBridgePatternDump(juce::MidiBuffer& midiMessages,
+    int sampleOffset,
+    int patternIndex)
+{
+    std::vector<juce::uint8> payload;
+    payload.reserve(8 + (patternLength * 4));
+
+    payload.push_back(0x7D);             // Non-commercial SysEx manufacturer ID
+    payload.push_back(0x4D);             // ASCII "M"
+    payload.push_back(0x50);             // ASCII "P"
+    payload.push_back(0x4C);             // ASCII "L"
+    payload.push_back(0x01);             // Protocol version
+    payload.push_back(0x06);             // Pattern dump response command
+    payload.push_back(static_cast<juce::uint8>(juce::jlimit(0, 127, patternIndex)));
+    payload.push_back(static_cast<juce::uint8>(patternLength));
+
+    for (int stepIndex = 0; stepIndex < patternLength; ++stepIndex)
+    {
+        const Step step = getStepForPattern(patternIndex, stepIndex);
+        const bool enabled = step.note >= 0;
+
+        payload.push_back(static_cast<juce::uint8>(enabled ? 1 : 0));
+        payload.push_back(static_cast<juce::uint8>(enabled ? juce::jlimit(0, 127, step.note) : 0));
+        payload.push_back(static_cast<juce::uint8>(juce::jlimit(0, 127, step.velocity)));
+        payload.push_back(static_cast<juce::uint8>(juce::jlimit(0, 127, step.durationSteps)));
+    }
+
+    midiMessages.addEvent(juce::MidiMessage::createSysExMessage(payload.data(),
+            static_cast<int>(payload.size())),
+        juce::jmax(0, sampleOffset));
+}
+
 
 #if JUCE_DEBUG
 bool MidiPatternLauncherAudioProcessor::runComposerBridgeProtocolSelfTest()
@@ -1126,6 +1158,17 @@ bool MidiPatternLauncherAudioProcessor::runComposerBridgeProtocolSelfTest()
         int status = -1;
         int originalCommand = -1;
         int detail = -1;
+    };
+
+    struct ExpectedPatternDump
+    {
+        bool found = false;
+        int patternIndex = -1;
+        int stepCount = -1;
+        int step0Enabled = -1;
+        int step0Note = -1;
+        int step0Velocity = -1;
+        int step0Duration = -1;
     };
 
     auto makeMessage = [](std::initializer_list<juce::uint8> payload)
@@ -1168,6 +1211,44 @@ bool MidiPatternLauncherAudioProcessor::runComposerBridgeProtocolSelfTest()
         return response;
     };
 
+    auto readSinglePatternDump = [](const juce::MidiBuffer& buffer) -> ExpectedPatternDump
+    {
+        ExpectedPatternDump dump;
+
+        for (const auto metadata : buffer)
+        {
+            const auto message = metadata.getMessage();
+
+            if (!message.isSysEx())
+                continue;
+
+            const auto* data = message.getSysExData();
+            const int dataSize = message.getSysExDataSize();
+
+            if (dataSize < 12)
+                continue;
+
+            if (data[0] != 0x7D
+                || data[1] != 0x4D
+                || data[2] != 0x50
+                || data[3] != 0x4C
+                || data[4] != 0x01
+                || data[5] != 0x06)
+                continue;
+
+            dump.found = true;
+            dump.patternIndex = data[6];
+            dump.stepCount = data[7];
+            dump.step0Enabled = data[8];
+            dump.step0Note = data[9];
+            dump.step0Velocity = data[10];
+            dump.step0Duration = data[11];
+            break;
+        }
+
+        return dump;
+    };
+
     auto runCase = [this, &makeMessage, &readSingleResponse](const char* name,
         std::initializer_list<juce::uint8> payload,
         int expectedStatus,
@@ -1203,6 +1284,41 @@ bool MidiPatternLauncherAudioProcessor::runComposerBridgeProtocolSelfTest()
     allPassed &= runCase("set step ACK",
         { 0x7D, 0x4D, 0x50, 0x4C, 0x01, 0x01, 0x00, 0x00, 0x01, 60, 100, 1 },
         0x00, 0x01, 0x00);
+
+    {
+        juce::MidiBuffer responses;
+        const auto message = makeMessage({ 0x7D, 0x4D, 0x50, 0x4C, 0x01, 0x05, 0x00 });
+
+        const bool handled = handleComposerBridgeSysEx(message, responses, 0);
+        const auto ack = readSingleResponse(responses);
+        const auto dump = readSinglePatternDump(responses);
+
+        const bool passed = handled
+            && ack.status == 0x00
+            && ack.originalCommand == 0x05
+            && ack.detail == 0x00
+            && dump.found
+            && dump.patternIndex == 0x00
+            && dump.stepCount == patternLength
+            && dump.step0Enabled == 0x01
+            && dump.step0Note == 60
+            && dump.step0Velocity == 100
+            && dump.step0Duration == 1;
+
+        allPassed &= passed;
+
+        DBG(juce::String("Composer Bridge self-test: request pattern dump ACK + payload ")
+            + (passed ? "PASS" : "FAIL")
+            + " handled=" + juce::String(handled ? "true" : "false")
+            + " ackStatus=" + juce::String(ack.status)
+            + " dumpFound=" + juce::String(dump.found ? "true" : "false")
+            + " pattern=" + juce::String(dump.patternIndex)
+            + " steps=" + juce::String(dump.stepCount)
+            + " step0Enabled=" + juce::String(dump.step0Enabled)
+            + " step0Note=" + juce::String(dump.step0Note)
+            + " step0Velocity=" + juce::String(dump.step0Velocity)
+            + " step0Duration=" + juce::String(dump.step0Duration));
+    }
 
     // Malformed set step: command present but missing required payload bytes.
     allPassed &= runCase("malformed set step NACK",
@@ -1452,6 +1568,37 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
                 dataIndex += valuesPerStep;
             }
 
+            sendComposerBridgeResponse(midiMessages, sampleOffset, responseAck, command, 0);
+            return true;
+        }
+
+        case 0x05:
+        {
+            // Request pattern dump:
+            // 7D 4D 50 4C 01 05 pattern
+            //
+            // Emits:
+            // 7D 4D 50 4C 01 06 pattern stepCount
+            //   step0Enabled step0Note step0Velocity step0Duration
+            //   ...
+            //   step15Enabled step15Note step15Velocity step15Duration
+            constexpr int requiredSize = headerSize + 1 + 1;
+
+            if (dataSize < requiredSize)
+            {
+                sendComposerBridgeResponse(midiMessages, sampleOffset, responseMalformed, command, 0);
+                return true;
+            }
+
+            const int patternIndex = getByte(commandIndex + 1);
+
+            if (patternIndex < 0 || patternIndex >= numPatterns)
+            {
+                sendComposerBridgeResponse(midiMessages, sampleOffset, responseInvalidPattern, command, patternIndex);
+                return true;
+            }
+
+            sendComposerBridgePatternDump(midiMessages, sampleOffset, patternIndex);
             sendComposerBridgeResponse(midiMessages, sampleOffset, responseAck, command, 0);
             return true;
         }
