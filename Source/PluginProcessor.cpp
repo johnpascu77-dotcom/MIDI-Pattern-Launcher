@@ -1082,7 +1082,30 @@ bool MidiPatternLauncherAudioProcessor::isBusesLayoutSupported(const BusesLayout
 // stubborn instruments/hosts that do not fully react to CC-style panic messages.
 
 
-bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::MidiMessage& message)
+void MidiPatternLauncherAudioProcessor::sendComposerBridgeResponse(juce::MidiBuffer& midiMessages,
+    int sampleOffset,
+    int status,
+    int originalCommand,
+    int detail)
+{
+    juce::uint8 payload[] =
+    {
+        0x7D,             // Non-commercial SysEx manufacturer ID
+        0x4D, 0x50, 0x4C, // ASCII "MPL"
+        0x01,             // Protocol version
+        0x7F,             // Response command
+        static_cast<juce::uint8>(juce::jlimit(0, 127, status)),
+        static_cast<juce::uint8>(juce::jlimit(0, 127, originalCommand)),
+        static_cast<juce::uint8>(juce::jlimit(0, 127, detail))
+    };
+
+    midiMessages.addEvent(juce::MidiMessage::createSysExMessage(payload, sizeof(payload)),
+        juce::jmax(0, sampleOffset));
+}
+
+bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::MidiMessage& message,
+    juce::MidiBuffer& midiMessages,
+    int sampleOffset)
 {
     if (!message.isSysEx())
         return false;
@@ -1093,7 +1116,7 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
     const auto* data = message.getSysExData();
     const int dataSize = message.getSysExDataSize();
 
-    // v1.21.0 Composer Bridge SysEx protocol.
+    // v1.22.0 Composer Bridge SysEx protocol.
     //
     // JUCE exposes only the payload bytes between F0 and F7 via getSysExData().
     //
@@ -1109,6 +1132,16 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
     //   02 pattern
     //   03 sourcePattern destinationPattern
     //   04 pattern [16 x enabled note velocity duration]
+    //
+    // Response:
+    //   7D 4D 50 4C 01 7F status originalCommand detail
+    //
+    // Status:
+    //   00 ACK / success
+    //   01 NACK / malformed message
+    //   02 NACK / invalid pattern
+    //   03 NACK / invalid step
+    //   04 NACK / unsupported command
 
     constexpr uint8 manufacturerId = 0x7D;
     constexpr uint8 magicM = 0x4D;
@@ -1118,6 +1151,12 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
 
     constexpr int headerSize = 5;
     constexpr int commandIndex = headerSize;
+
+    constexpr int responseAck = 0x00;
+    constexpr int responseMalformed = 0x01;
+    constexpr int responseInvalidPattern = 0x02;
+    constexpr int responseInvalidStep = 0x03;
+    constexpr int responseUnsupportedCommand = 0x04;
 
     if (dataSize < headerSize + 1)
         return false;
@@ -1150,7 +1189,10 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
             constexpr int requiredSize = headerSize + 1 + 6;
 
             if (dataSize < requiredSize)
+            {
+                sendComposerBridgeResponse(midiMessages, sampleOffset, responseMalformed, command, 0);
                 return true;
+            }
 
             const int patternIndex = getByte(commandIndex + 1);
             const int stepIndex = getByte(commandIndex + 2);
@@ -1160,16 +1202,23 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
             const int durationSteps = getByte(commandIndex + 6);
 
             if (patternIndex < 0 || patternIndex >= numPatterns)
+            {
+                sendComposerBridgeResponse(midiMessages, sampleOffset, responseInvalidPattern, command, patternIndex);
                 return true;
+            }
 
             if (stepIndex < 0 || stepIndex >= patternLength)
+            {
+                sendComposerBridgeResponse(midiMessages, sampleOffset, responseInvalidStep, command, stepIndex);
                 return true;
+            }
 
             if (enabled)
                 setStepValues(patternIndex, stepIndex, note, velocity, durationSteps);
             else
                 clearStep(patternIndex, stepIndex);
 
+            sendComposerBridgeResponse(midiMessages, sampleOffset, responseAck, command, 0);
             return true;
         }
 
@@ -1180,13 +1229,22 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
             constexpr int requiredSize = headerSize + 1 + 1;
 
             if (dataSize < requiredSize)
+            {
+                sendComposerBridgeResponse(midiMessages, sampleOffset, responseMalformed, command, 0);
                 return true;
+            }
 
             const int patternIndex = getByte(commandIndex + 1);
 
-            if (patternIndex >= 0 && patternIndex < numPatterns)
-                clearPattern(patternIndex);
+            if (patternIndex < 0 || patternIndex >= numPatterns)
+            {
+                sendComposerBridgeResponse(midiMessages, sampleOffset, responseInvalidPattern, command, patternIndex);
+                return true;
+            }
 
+            clearPattern(patternIndex);
+
+            sendComposerBridgeResponse(midiMessages, sampleOffset, responseAck, command, 0);
             return true;
         }
 
@@ -1197,17 +1255,29 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
             constexpr int requiredSize = headerSize + 1 + 2;
 
             if (dataSize < requiredSize)
+            {
+                sendComposerBridgeResponse(midiMessages, sampleOffset, responseMalformed, command, 0);
                 return true;
+            }
 
             const int sourcePatternIndex = getByte(commandIndex + 1);
             const int destinationPatternIndex = getByte(commandIndex + 2);
 
-            if (sourcePatternIndex >= 0 && sourcePatternIndex < numPatterns
-                && destinationPatternIndex >= 0 && destinationPatternIndex < numPatterns)
+            if (sourcePatternIndex < 0 || sourcePatternIndex >= numPatterns)
             {
-                copyPattern(sourcePatternIndex, destinationPatternIndex);
+                sendComposerBridgeResponse(midiMessages, sampleOffset, responseInvalidPattern, command, sourcePatternIndex);
+                return true;
             }
 
+            if (destinationPatternIndex < 0 || destinationPatternIndex >= numPatterns)
+            {
+                sendComposerBridgeResponse(midiMessages, sampleOffset, responseInvalidPattern, command, destinationPatternIndex);
+                return true;
+            }
+
+            copyPattern(sourcePatternIndex, destinationPatternIndex);
+
+            sendComposerBridgeResponse(midiMessages, sampleOffset, responseAck, command, 0);
             return true;
         }
 
@@ -1222,12 +1292,18 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
             constexpr int requiredSize = headerSize + 1 + 1 + (patternLength * valuesPerStep);
 
             if (dataSize < requiredSize)
+            {
+                sendComposerBridgeResponse(midiMessages, sampleOffset, responseMalformed, command, 0);
                 return true;
+            }
 
             const int patternIndex = getByte(commandIndex + 1);
 
             if (patternIndex < 0 || patternIndex >= numPatterns)
+            {
+                sendComposerBridgeResponse(midiMessages, sampleOffset, responseInvalidPattern, command, patternIndex);
                 return true;
+            }
 
             int dataIndex = commandIndex + 2;
 
@@ -1246,10 +1322,12 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
                 dataIndex += valuesPerStep;
             }
 
+            sendComposerBridgeResponse(midiMessages, sampleOffset, responseAck, command, 0);
             return true;
         }
 
         default:
+            sendComposerBridgeResponse(midiMessages, sampleOffset, responseUnsupportedCommand, command, 0);
             return true;
     }
 }
@@ -1392,7 +1470,7 @@ void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& b
     {
         const auto message = metadata.getMessage();
 
-        if (handleComposerBridgeSysEx(message))
+        if (handleComposerBridgeSysEx(message, midiMessages, metadata.samplePosition))
             continue;
 
         if (handleExternalControlCC(message))
@@ -1836,5 +1914,4 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new MidiPatternLauncherAudioProcessor();
 }
-
 
