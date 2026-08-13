@@ -163,7 +163,10 @@ private:
     juce::Label targetNoteLabel;
     juce::Label targetVelocityLabel;
     juce::Label targetDurationLabel;
+    juce::Label globalSwingLabel;
     juce::Label targetEnabledLabel;
+    juce::Label externalControlLabel;
+    juce::Label externalControlChannelLabel;
 
     juce::ComboBox targetPatternBox;
     juce::ComboBox gridModeBox;
@@ -173,7 +176,10 @@ private:
     juce::Slider targetNoteSlider;
     juce::Slider targetVelocitySlider;
     juce::Slider targetDurationSlider;
+    juce::Slider globalSwingSlider;
     juce::ToggleButton targetEnabledButton{ "Enabled" };
+    juce::ToggleButton externalControlEnabledButton{ "Ext Ctrl" };
+    juce::ComboBox externalControlChannelBox;
 
     std::unique_ptr<ComboBoxAttachment> targetPatternAttachment;
     std::unique_ptr<ComboBoxAttachment> gridModeAttachment;
@@ -182,7 +188,10 @@ private:
     std::unique_ptr<SliderAttachment> targetNoteAttachment;
     std::unique_ptr<SliderAttachment> targetVelocityAttachment;
     std::unique_ptr<SliderAttachment> targetDurationAttachment;
+    std::unique_ptr<SliderAttachment> globalSwingAttachment;
     std::unique_ptr<ButtonAttachment> targetEnabledAttachment;
+    std::unique_ptr<ButtonAttachment> externalControlEnabledAttachment;
+    std::unique_ptr<ComboBoxAttachment> externalControlChannelAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MidiPatternLauncherAudioProcessorEditor)
 };

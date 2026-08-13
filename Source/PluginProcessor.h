@@ -46,6 +46,11 @@ public:
     int getGridStepCount() const;
     bool isTernaryGridMode() const;
 
+    float getGlobalSwingAmount() const;
+
+    bool isExternalControlEnabled() const;
+    int getExternalControlChannel() const;
+
     int getEditorViewModeIndex() const;
     bool isMelodyPaintMode() const;
 
@@ -143,6 +148,8 @@ private:
     void syncTargetParametersFromStep();
     void syncTargetStepFromParameters();
 
+    bool handleExternalControlCC(const juce::MidiMessage& message);
+
     double mySampleRate = 44100.0;
 
     std::array<Pattern, numPatterns> patterns;
@@ -172,6 +179,7 @@ private:
 
     int getChoiceParameterIndex(const juce::String& parameterID) const;
     int getIntParameterValue(const juce::String& parameterID) const;
+    float getFloatParameterValue(const juce::String& parameterID) const;
     bool getBoolParameterValue(const juce::String& parameterID) const;
 
     void setParameterPlainValueNotifyingHost(const juce::String& parameterID, float plainValue);
