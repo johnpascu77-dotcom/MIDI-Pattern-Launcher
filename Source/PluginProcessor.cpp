@@ -1093,7 +1093,7 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
     const auto* data = message.getSysExData();
     const int dataSize = message.getSysExDataSize();
 
-    // v1.20.0 Composer Bridge SysEx protocol.
+    // v1.21.0 Composer Bridge SysEx protocol.
     //
     // JUCE exposes only the payload bytes between F0 and F7 via getSysExData().
     //
@@ -1108,6 +1108,7 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
     //   01 pattern step enabled note velocity duration
     //   02 pattern
     //   03 sourcePattern destinationPattern
+    //   04 pattern [16 x enabled note velocity duration]
 
     constexpr uint8 manufacturerId = 0x7D;
     constexpr uint8 magicM = 0x4D;
@@ -1205,6 +1206,44 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
                 && destinationPatternIndex >= 0 && destinationPatternIndex < numPatterns)
             {
                 copyPattern(sourcePatternIndex, destinationPatternIndex);
+            }
+
+            return true;
+        }
+
+        case 0x04:
+        {
+            // Write full pattern:
+            // 7D 4D 50 4C 01 04 pattern
+            //   step0Enabled step0Note step0Velocity step0Duration
+            //   ...
+            //   step15Enabled step15Note step15Velocity step15Duration
+            constexpr int valuesPerStep = 4;
+            constexpr int requiredSize = headerSize + 1 + 1 + (patternLength * valuesPerStep);
+
+            if (dataSize < requiredSize)
+                return true;
+
+            const int patternIndex = getByte(commandIndex + 1);
+
+            if (patternIndex < 0 || patternIndex >= numPatterns)
+                return true;
+
+            int dataIndex = commandIndex + 2;
+
+            for (int stepIndex = 0; stepIndex < patternLength; ++stepIndex)
+            {
+                const bool enabled = getByte(dataIndex) != 0;
+                const int note = getByte(dataIndex + 1);
+                const int velocity = getByte(dataIndex + 2);
+                const int durationSteps = getByte(dataIndex + 3);
+
+                if (enabled)
+                    setStepValues(patternIndex, stepIndex, note, velocity, durationSteps);
+                else
+                    clearStep(patternIndex, stepIndex);
+
+                dataIndex += valuesPerStep;
             }
 
             return true;
