@@ -1182,15 +1182,23 @@ void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& b
 
     //==============================================================================
     // 4. Determine which metric grid lines occur inside this block.
+    //
+    // v1.18.0 Swing fix:
+    // Note-ons may be delayed past their original grid line and into a later audio
+    // block. Therefore, note-on generation also inspects one previous grid step.
+    // Bar-boundary actions and note-offs still use the unswung grid lines that
+    // actually occur inside this block.
 
-    const int firstStepInBlock = static_cast<int> (std::ceil(ppqStart / gridStepLengthInPpq));
+    const int firstGridStepInBlock = static_cast<int> (std::ceil(ppqStart / gridStepLengthInPpq));
     const int lastStepInBlock = static_cast<int> (std::floor(ppqEnd / gridStepLengthInPpq));
+    const int firstStepForNoteOns = firstGridStepInBlock - 1;
 
     constexpr int midiChannel = 1;
 
-    for (int step = firstStepInBlock; step <= lastStepInBlock; ++step)
+    for (int step = firstStepForNoteOns; step <= lastStepInBlock; ++step)
     {
         const double stepPpq = static_cast<double> (step) * gridStepLengthInPpq;
+        const bool gridStepIsInsideThisBlock = step >= firstGridStepInBlock;
 
         int sampleOffset = static_cast<int> (std::round((stepPpq - ppqStart) / ppqPerSample));
         sampleOffset = juce::jlimit(0, numSamples - 1, sampleOffset);
@@ -1198,9 +1206,12 @@ void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& b
         const int currentBar = step / gridStepCount;
         const bool isAtBarStart = (step % gridStepCount) == 0;
 
-        displayCurrentBar.store(currentBar + 1);
-        displayActivePattern.store(activePattern);
-        displayPendingPattern.store(pendingPattern);
+        if (gridStepIsInsideThisBlock)
+        {
+            displayCurrentBar.store(currentBar + 1);
+            displayActivePattern.store(activePattern);
+            displayPendingPattern.store(pendingPattern);
+        }
 
         //======================================================================
         // 4a. Send pending note-offs exactly on their musical target step.
@@ -1210,18 +1221,21 @@ void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& b
         // Therefore, if transpose or rotation changes while a note is held,
         // the correct note-off is still sent.
 
-        for (auto it = pendingNoteOffs.begin(); it != pendingNoteOffs.end(); )
+        if (gridStepIsInsideThisBlock)
         {
-            if (step >= it->targetStep)
+            for (auto it = pendingNoteOffs.begin(); it != pendingNoteOffs.end(); )
             {
-                midiMessages.addEvent(juce::MidiMessage::noteOff(it->channel, it->note),
-                    sampleOffset);
+                if (step >= it->targetStep)
+                {
+                    midiMessages.addEvent(juce::MidiMessage::noteOff(it->channel, it->note),
+                        sampleOffset);
 
-                it = pendingNoteOffs.erase(it);
-            }
-            else
-            {
-                ++it;
+                    it = pendingNoteOffs.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
             }
         }
 
@@ -1235,7 +1249,10 @@ void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& b
         // This prevents long notes from the previous pattern from leaking into
         // the stopped state or into the next pattern.
 
-        if (pendingPattern != -2 && isAtBarStart && currentBar != lastLaunchBar)
+        if (gridStepIsInsideThisBlock
+            && pendingPattern != -2
+            && isAtBarStart
+            && currentBar != lastLaunchBar)
         {
             sendAllNotesOffNow(midiMessages, sampleOffset);
 
@@ -1268,7 +1285,9 @@ void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& b
         const int stepsSincePatternStart = step - patternStartStep;
         const int activeLoopLength = juce::jmin(getPatternLoopLength(activePattern), gridStepCount);
         const int playbackStepIndex = ((stepsSincePatternStart % activeLoopLength) + activeLoopLength) % activeLoopLength;
-        displayCurrentStep.store(playbackStepIndex + 1);
+        if (gridStepIsInsideThisBlock)
+            displayCurrentStep.store(playbackStepIndex + 1);
+
         // v1.4.0/v1.12.0:
         // Rotation is applied only to the source step lookup.
         // The visible playhead follows the loop-relative playback step.
@@ -1286,39 +1305,49 @@ void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& b
 
             const int outputNote = applyPatternTransformsToNote(activePattern, currentStepData.note);
 
-            int noteOnSampleOffset = sampleOffset;
-
             const float swingPercent = getGlobalSwingAmount();
-            if (swingPercent > 0.0f && (playbackStepIndex % 2) == 1)
-            {
-                const double swingFraction = static_cast<double>(swingPercent) / 100.0;
-                const double stepLengthInSamples = gridStepLengthInPpq / ppqPerSample;
+            const bool shouldSwingStep = swingPercent > 0.0f && (playbackStepIndex % 2) == 1;
+            const double swingFraction = static_cast<double>(swingPercent) / 100.0;
 
-                // v1.18.0: Swing delays offbeat/odd loop-relative playback steps.
-                // 75% Swing means up to half a step of delay.
-                const int swingDelaySamples = static_cast<int>(
-                    std::round(stepLengthInSamples * 0.5 * swingFraction));
+            // v1.18.0:
+            // Swing delays odd loop-relative playback steps in musical time.
+            // 75% Swing means a delay of 37.5% of one grid step, because the
+            // maximum delay is half a grid step multiplied by the swing amount.
+            const double swingDelayPpq = shouldSwingStep
+                ? gridStepLengthInPpq * 0.5 * swingFraction
+                : 0.0;
+
+            const double noteOnPpq = stepPpq + swingDelayPpq;
+
+            if (noteOnPpq >= ppqStart && noteOnPpq < ppqEnd)
+            {
+                int noteOnSampleOffset = static_cast<int> (
+                    std::round((noteOnPpq - ppqStart) / ppqPerSample));
 
                 noteOnSampleOffset = juce::jlimit(
                     0,
                     juce::jmax(0, numSamples - 1),
-                    sampleOffset + swingDelaySamples);
+                    noteOnSampleOffset);
+
+                midiMessages.addEvent(juce::MidiMessage::noteOn(midiChannel,
+                        outputNote,
+                        stepVelocity),
+                    noteOnSampleOffset);
+
+                PendingNoteOff noteOff;
+                noteOff.note = outputNote;
+                noteOff.channel = midiChannel;
+                noteOff.targetStep = step + currentStepData.durationSteps;
+
+                pendingNoteOffs.push_back(noteOff);
+
+                lastPlayedStep = step;
             }
-
-            midiMessages.addEvent(juce::MidiMessage::noteOn(midiChannel,
-                    outputNote,
-                    stepVelocity),
-                noteOnSampleOffset);
-
-            PendingNoteOff noteOff;
-            noteOff.note = outputNote;
-            noteOff.channel = midiChannel;
-            noteOff.targetStep = step + currentStepData.durationSteps;
-
-            pendingNoteOffs.push_back(noteOff);
         }
 
-        lastPlayedStep = step;
+        if (gridStepIsInsideThisBlock
+            && (getGlobalSwingAmount() <= 0.0f || (playbackStepIndex % 2) == 0))
+            lastPlayedStep = step;
     }
 }
 
