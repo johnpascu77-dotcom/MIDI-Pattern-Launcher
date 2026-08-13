@@ -133,3 +133,36 @@ The latest development milestone completed Matrix gesture editing and improved v
 ## License
 
 Add your preferred license here.
+
+## Composer Bridge Protocol
+
+MIDI Pattern Launcher includes a Composer Bridge SysEx protocol for external tools, scripts, and hardware controllers.
+
+Composer Bridge supports:
+
+- Writing individual pattern steps.
+- Clearing patterns.
+- Copying patterns.
+- Writing complete 16-step patterns.
+- Requesting full pattern dumps from the plugin.
+- ACK/NACK feedback for external commands.
+
+Protocol documentation is available here:
+
+- `Docs/ComposerBridgeProtocol.md`
+
+A Python reference client is available here:
+
+- `tools/composer_bridge_client.py`
+
+The reference client requires:
+
+    pip install mido python-rtmidi
+
+Example commands:
+
+    python tools/composer_bridge_client.py list
+    python tools/composer_bridge_client.py dump --out "MIDI Pattern Launcher" --in "MIDI Pattern Launcher" --pattern 0
+    python tools/composer_bridge_client.py set-step --out "MIDI Pattern Launcher" --pattern 0 --step 0 --enabled 1 --note 60 --velocity 100 --duration 1
+
+Composer Bridge must be enabled in the plugin before external SysEx commands are handled.
