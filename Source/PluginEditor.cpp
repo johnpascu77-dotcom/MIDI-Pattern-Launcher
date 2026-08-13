@@ -53,6 +53,8 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     setupLabel(targetDurationLabel, "Duration");
     setupLabel(globalSwingLabel, "Swing");
     setupLabel(targetEnabledLabel, "Enabled");
+    setupLabel(externalControlLabel, "External");
+    setupLabel(externalControlChannelLabel, "Channel");
 
     addAndMakeVisible(targetTitleLabel);
     addAndMakeVisible(targetPatternLabel);
@@ -64,6 +66,8 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     addAndMakeVisible(targetDurationLabel);
     addAndMakeVisible(globalSwingLabel);
     addAndMakeVisible(targetEnabledLabel);
+    addAndMakeVisible(externalControlLabel);
+    addAndMakeVisible(externalControlChannelLabel);
 
     targetPatternBox.addItem("Pattern 1", 1);
     targetPatternBox.addItem("Pattern 2", 2);
@@ -74,6 +78,10 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     editorViewModeBox.addItem("Matrix", 1);
     editorViewModeBox.addItem("Melody", 2);
+
+    externalControlChannelBox.addItem("All", 1);
+    for (int channel = 1; channel <= 16; ++channel)
+        externalControlChannelBox.addItem(juce::String(channel), channel + 1);
 
     auto setupSlider = [](juce::Slider& slider)
         {
@@ -103,6 +111,8 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     addAndMakeVisible(targetDurationSlider);
     addAndMakeVisible(globalSwingSlider);
     addAndMakeVisible(targetEnabledButton);
+    addAndMakeVisible(externalControlEnabledButton);
+    addAndMakeVisible(externalControlChannelBox);
 
     auto& apvts = audioProcessor.getAPVTS();
 
@@ -132,6 +142,12 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     targetEnabledAttachment = std::make_unique<ButtonAttachment>(
         apvts, "targetEnabledParam", targetEnabledButton);
+
+    externalControlEnabledAttachment = std::make_unique<ButtonAttachment>(
+        apvts, "externalControlEnabledParam", externalControlEnabledButton);
+
+    externalControlChannelAttachment = std::make_unique<ComboBoxAttachment>(
+        apvts, "externalControlChannelParam", externalControlChannelBox);
 
     audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
 
@@ -1676,7 +1692,7 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.18.0 - Swing / Groove",
+    g.drawFittedText("v1.19.0 - External Control",
         titleRow,
         juce::Justification::centredRight,
         1);
@@ -2334,6 +2350,14 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
 
     globalSwingLabel.setBounds(targetRow2.removeFromLeft(targetLabelWidth));
     globalSwingSlider.setBounds(targetRow2.removeFromLeft(targetControlWidth));
+    targetRow2.removeFromLeft(targetGap);
+
+    externalControlLabel.setBounds(targetRow2.removeFromLeft(64));
+    externalControlEnabledButton.setBounds(targetRow2.removeFromLeft(90));
+    targetRow2.removeFromLeft(targetGap);
+
+    externalControlChannelLabel.setBounds(targetRow2.removeFromLeft(64));
+    externalControlChannelBox.setBounds(targetRow2.removeFromLeft(90));
 }
 
 
