@@ -14,6 +14,10 @@ MidiPatternLauncherAudioProcessor::MidiPatternLauncherAudioProcessor()
 #endif
 {
     initialisePatterns();
+
+#if JUCE_DEBUG
+    runComposerBridgeProtocolSelfTest();
+#endif
 }
 
 MidiPatternLauncherAudioProcessor::~MidiPatternLauncherAudioProcessor()
@@ -1113,6 +1117,122 @@ void MidiPatternLauncherAudioProcessor::sendComposerBridgeResponse(juce::MidiBuf
         juce::jmax(0, sampleOffset));
 }
 
+
+#if JUCE_DEBUG
+bool MidiPatternLauncherAudioProcessor::runComposerBridgeProtocolSelfTest()
+{
+    struct ExpectedResponse
+    {
+        int status = -1;
+        int originalCommand = -1;
+        int detail = -1;
+    };
+
+    auto makeMessage = [](std::initializer_list<juce::uint8> payload)
+    {
+        return juce::MidiMessage::createSysExMessage(payload.begin(),
+            static_cast<int>(payload.size()));
+    };
+
+    auto readSingleResponse = [](const juce::MidiBuffer& buffer) -> ExpectedResponse
+    {
+        ExpectedResponse response;
+
+        for (const auto metadata : buffer)
+        {
+            const auto message = metadata.getMessage();
+
+            if (!message.isSysEx())
+                continue;
+
+            const auto* data = message.getSysExData();
+            const int dataSize = message.getSysExDataSize();
+
+            if (dataSize < 9)
+                continue;
+
+            if (data[0] != 0x7D
+                || data[1] != 0x4D
+                || data[2] != 0x50
+                || data[3] != 0x4C
+                || data[4] != 0x01
+                || data[5] != 0x7F)
+                continue;
+
+            response.status = data[6];
+            response.originalCommand = data[7];
+            response.detail = data[8];
+            break;
+        }
+
+        return response;
+    };
+
+    auto runCase = [this, &makeMessage, &readSingleResponse](const char* name,
+        std::initializer_list<juce::uint8> payload,
+        int expectedStatus,
+        int expectedOriginalCommand,
+        int expectedDetail)
+    {
+        juce::MidiBuffer responses;
+        const auto message = makeMessage(payload);
+
+        const bool handled = handleComposerBridgeSysEx(message, responses, 0);
+        const auto response = readSingleResponse(responses);
+
+        const bool passed = handled
+            && response.status == expectedStatus
+            && response.originalCommand == expectedOriginalCommand
+            && response.detail == expectedDetail;
+
+        DBG(juce::String("Composer Bridge self-test: ")
+            + name
+            + (passed ? " PASS" : " FAIL")
+            + " handled=" + juce::String(handled ? "true" : "false")
+            + " status=" + juce::String(response.status)
+            + " originalCommand=" + juce::String(response.originalCommand)
+            + " detail=" + juce::String(response.detail));
+
+        return passed;
+    };
+
+    bool allPassed = true;
+
+    // Valid set step:
+    // 7D 4D 50 4C 01 01 pattern step enabled note velocity duration
+    allPassed &= runCase("set step ACK",
+        { 0x7D, 0x4D, 0x50, 0x4C, 0x01, 0x01, 0x00, 0x00, 0x01, 60, 100, 1 },
+        0x00, 0x01, 0x00);
+
+    // Malformed set step: command present but missing required payload bytes.
+    allPassed &= runCase("malformed set step NACK",
+        { 0x7D, 0x4D, 0x50, 0x4C, 0x01, 0x01, 0x00 },
+        0x01, 0x01, 0x00);
+
+    // Invalid pattern index.
+    allPassed &= runCase("invalid pattern NACK",
+        { 0x7D, 0x4D, 0x50, 0x4C, 0x01, 0x01, 0x7F, 0x00, 0x01, 60, 100, 1 },
+        0x02, 0x01, 0x7F);
+
+    // Invalid step index.
+    allPassed &= runCase("invalid step NACK",
+        { 0x7D, 0x4D, 0x50, 0x4C, 0x01, 0x01, 0x00, 0x7F, 0x01, 60, 100, 1 },
+        0x03, 0x01, 0x7F);
+
+    // Unsupported command.
+    allPassed &= runCase("unsupported command NACK",
+        { 0x7D, 0x4D, 0x50, 0x4C, 0x01, 0x7E },
+        0x04, 0x7E, 0x00);
+
+    DBG(juce::String("Composer Bridge self-test overall: ")
+        + (allPassed ? "PASS" : "FAIL"));
+
+    // Keep constructor-time debug self-tests from altering the initial pattern state.
+    clearStep(0, 0);
+
+    return allPassed;
+}
+#endif
 bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::MidiMessage& message,
     juce::MidiBuffer& midiMessages,
     int sampleOffset)

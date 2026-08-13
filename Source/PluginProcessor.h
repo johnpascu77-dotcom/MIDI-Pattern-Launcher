@@ -53,6 +53,10 @@ public:
     int getExternalControlChannel() const;
 
     int getEditorViewModeIndex() const;
+
+#if JUCE_DEBUG
+    bool runComposerBridgeProtocolSelfTest();
+#endif
     bool isMelodyPaintMode() const;
 
     int getDisplayActivePattern() const;
