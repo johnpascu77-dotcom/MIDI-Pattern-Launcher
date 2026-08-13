@@ -51,6 +51,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     setupLabel(targetNoteLabel, "Note");
     setupLabel(targetVelocityLabel, "Velocity");
     setupLabel(targetDurationLabel, "Duration");
+    setupLabel(globalSwingLabel, "Swing");
     setupLabel(targetEnabledLabel, "Enabled");
 
     addAndMakeVisible(targetTitleLabel);
@@ -61,6 +62,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     addAndMakeVisible(targetNoteLabel);
     addAndMakeVisible(targetVelocityLabel);
     addAndMakeVisible(targetDurationLabel);
+    addAndMakeVisible(globalSwingLabel);
     addAndMakeVisible(targetEnabledLabel);
 
     targetPatternBox.addItem("Pattern 1", 1);
@@ -86,6 +88,11 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     setupSlider(targetNoteSlider);
     setupSlider(targetVelocitySlider);
     setupSlider(targetDurationSlider);
+    setupSlider(globalSwingSlider);
+
+    globalSwingSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    globalSwingSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 56, 22);
+    globalSwingSlider.setTextValueSuffix("%");
 
     addAndMakeVisible(targetPatternBox);
     addAndMakeVisible(gridModeBox);
@@ -94,6 +101,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     addAndMakeVisible(targetNoteSlider);
     addAndMakeVisible(targetVelocitySlider);
     addAndMakeVisible(targetDurationSlider);
+    addAndMakeVisible(globalSwingSlider);
     addAndMakeVisible(targetEnabledButton);
 
     auto& apvts = audioProcessor.getAPVTS();
@@ -118,6 +126,9 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     targetDurationAttachment = std::make_unique<SliderAttachment>(
         apvts, "targetDurationParam", targetDurationSlider);
+
+    globalSwingAttachment = std::make_unique<SliderAttachment>(
+        apvts, "globalSwingParam", globalSwingSlider);
 
     targetEnabledAttachment = std::make_unique<ButtonAttachment>(
         apvts, "targetEnabledParam", targetEnabledButton);
@@ -1665,7 +1676,7 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.17.6 - UI Polish",
+    g.drawFittedText("v1.18.0 - Swing / Groove",
         titleRow,
         juce::Justification::centredRight,
         1);
@@ -2319,6 +2330,10 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
 
     targetDurationLabel.setBounds(targetRow2.removeFromLeft(targetLabelWidth));
     targetDurationSlider.setBounds(targetRow2.removeFromLeft(targetControlWidth));
+    targetRow2.removeFromLeft(targetGap);
+
+    globalSwingLabel.setBounds(targetRow2.removeFromLeft(targetLabelWidth));
+    globalSwingSlider.setBounds(targetRow2.removeFromLeft(targetControlWidth));
 }
 
 

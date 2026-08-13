@@ -163,6 +163,7 @@ private:
     juce::Label targetNoteLabel;
     juce::Label targetVelocityLabel;
     juce::Label targetDurationLabel;
+    juce::Label globalSwingLabel;
     juce::Label targetEnabledLabel;
 
     juce::ComboBox targetPatternBox;
@@ -173,6 +174,7 @@ private:
     juce::Slider targetNoteSlider;
     juce::Slider targetVelocitySlider;
     juce::Slider targetDurationSlider;
+    juce::Slider globalSwingSlider;
     juce::ToggleButton targetEnabledButton{ "Enabled" };
 
     std::unique_ptr<ComboBoxAttachment> targetPatternAttachment;
@@ -182,6 +184,7 @@ private:
     std::unique_ptr<SliderAttachment> targetNoteAttachment;
     std::unique_ptr<SliderAttachment> targetVelocityAttachment;
     std::unique_ptr<SliderAttachment> targetDurationAttachment;
+    std::unique_ptr<SliderAttachment> globalSwingAttachment;
     std::unique_ptr<ButtonAttachment> targetEnabledAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MidiPatternLauncherAudioProcessorEditor)
