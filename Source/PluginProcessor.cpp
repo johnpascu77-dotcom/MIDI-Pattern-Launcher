@@ -48,6 +48,23 @@ juce::AudioProcessorValueTreeState::ParameterLayout MidiPatternLauncherAudioProc
         juce::StringArray{ "Matrix", "Melody" },
         0));
 
+    parameters.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("externalControlEnabledParam", 1),
+        "External Control Enabled",
+        false));
+
+    parameters.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("externalControlChannelParam", 1),
+        "External Control Channel",
+        juce::StringArray{
+            "All",
+            "1", "2", "3", "4",
+            "5", "6", "7", "8",
+            "9", "10", "11", "12",
+            "13", "14", "15", "16"
+        },
+        0));
+
     parameters.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("globalSwingParam", 1),
         "Swing",
@@ -146,6 +163,17 @@ bool MidiPatternLauncherAudioProcessor::isTernaryGridMode() const
 float MidiPatternLauncherAudioProcessor::getGlobalSwingAmount() const
 {
     return juce::jlimit(0.0f, 75.0f, getFloatParameterValue("globalSwingParam"));
+}
+
+bool MidiPatternLauncherAudioProcessor::isExternalControlEnabled() const
+{
+    return getBoolParameterValue("externalControlEnabledParam");
+}
+
+int MidiPatternLauncherAudioProcessor::getExternalControlChannel() const
+{
+    // 0 = All, 1..16 = specific MIDI channel.
+    return juce::jlimit(0, 16, getChoiceParameterIndex("externalControlChannelParam"));
 }
 
 int MidiPatternLauncherAudioProcessor::getEditorViewModeIndex() const
@@ -1053,6 +1081,114 @@ bool MidiPatternLauncherAudioProcessor::isBusesLayoutSupported(const BusesLayout
 // All Notes Off message. The individual note-offs are the important part for
 // stubborn instruments/hosts that do not fully react to CC-style panic messages.
 
+bool MidiPatternLauncherAudioProcessor::handleExternalControlCC(const juce::MidiMessage& message)
+{
+    if (!message.isController())
+        return false;
+
+    if (!isExternalControlEnabled())
+        return false;
+
+    const int listenChannel = getExternalControlChannel();
+    const int messageChannel = message.getChannel();
+
+    if (listenChannel != 0 && messageChannel != listenChannel)
+        return false;
+
+    const int ccNumber = message.getControllerNumber();
+    const int ccValue = juce::jlimit(0, 127, message.getControllerValue());
+
+    auto scaleInt = [ccValue](int minValue, int maxValue)
+    {
+        if (maxValue <= minValue)
+            return minValue;
+
+        const double normalised = static_cast<double>(ccValue) / 127.0;
+        return juce::jlimit(minValue,
+            maxValue,
+            minValue + static_cast<int>(std::round(normalised * static_cast<double>(maxValue - minValue))));
+    };
+
+    auto scaleFloat = [ccValue](float minValue, float maxValue)
+    {
+        const float normalised = static_cast<float>(ccValue) / 127.0f;
+        return juce::jlimit(minValue, maxValue, minValue + (normalised * (maxValue - minValue)));
+    };
+
+    auto setPlain = [this](const juce::String& parameterID, float plainValue)
+    {
+        setParameterPlainValueNotifyingHost(parameterID, plainValue);
+    };
+
+    switch (ccNumber)
+    {
+        case 20: // Active Pattern: 0 = Stopped, 1..3 = Pattern 1..3
+            setPlain("activePatternParam", static_cast<float>(scaleInt(0, numPatterns)));
+            return true;
+
+        case 22: // Grid Mode: Binary / Ternary
+            setPlain("gridModeParam", static_cast<float>(scaleInt(0, 1)));
+            return true;
+
+        case 24: // Swing: 0%..75%
+            setPlain("globalSwingParam", scaleFloat(0.0f, 75.0f));
+            return true;
+
+        case 30: // P1 Transpose
+            setPlain(getTransposeParameterID(0), static_cast<float>(scaleInt(-48, 48)));
+            return true;
+
+        case 31: // P1 Rotation
+            setPlain(getRotationParameterID(0), static_cast<float>(scaleInt(0, patternLength - 1)));
+            return true;
+
+        case 32: // P1 Length
+            setPlain(getLengthParameterID(0), static_cast<float>(scaleInt(minPatternLoopLength, patternLength)));
+            return true;
+
+        case 33: // P1 Inversion
+            setPlain(getInversionParameterID(0), ccValue >= 64 ? 1.0f : 0.0f);
+            return true;
+
+        case 40: // P2 Transpose
+            setPlain(getTransposeParameterID(1), static_cast<float>(scaleInt(-48, 48)));
+            return true;
+
+        case 41: // P2 Rotation
+            setPlain(getRotationParameterID(1), static_cast<float>(scaleInt(0, patternLength - 1)));
+            return true;
+
+        case 42: // P2 Length
+            setPlain(getLengthParameterID(1), static_cast<float>(scaleInt(minPatternLoopLength, patternLength)));
+            return true;
+
+        case 43: // P2 Inversion
+            setPlain(getInversionParameterID(1), ccValue >= 64 ? 1.0f : 0.0f);
+            return true;
+
+        case 50: // P3 Transpose
+            setPlain(getTransposeParameterID(2), static_cast<float>(scaleInt(-48, 48)));
+            return true;
+
+        case 51: // P3 Rotation
+            setPlain(getRotationParameterID(2), static_cast<float>(scaleInt(0, patternLength - 1)));
+            return true;
+
+        case 52: // P3 Length
+            setPlain(getLengthParameterID(2), static_cast<float>(scaleInt(minPatternLoopLength, patternLength)));
+            return true;
+
+        case 53: // P3 Inversion
+            setPlain(getInversionParameterID(2), ccValue >= 64 ? 1.0f : 0.0f);
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
 void MidiPatternLauncherAudioProcessor::sendAllNotesOffNow(juce::MidiBuffer& midiMessages, int sampleOffset)
 {
     for (int note = 0; note < 128; ++note)
@@ -1082,6 +1218,9 @@ void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& b
     for (const auto metadata : incomingMidi)
     {
         const auto message = metadata.getMessage();
+
+        if (handleExternalControlCC(message))
+            continue;
 
         if (message.isNoteOn())
         {

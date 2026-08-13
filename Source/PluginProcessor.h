@@ -48,6 +48,9 @@ public:
 
     float getGlobalSwingAmount() const;
 
+    bool isExternalControlEnabled() const;
+    int getExternalControlChannel() const;
+
     int getEditorViewModeIndex() const;
     bool isMelodyPaintMode() const;
 
@@ -144,6 +147,8 @@ private:
 
     void syncTargetParametersFromStep();
     void syncTargetStepFromParameters();
+
+    bool handleExternalControlCC(const juce::MidiMessage& message);
 
     double mySampleRate = 44100.0;
 
