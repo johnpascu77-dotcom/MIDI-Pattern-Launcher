@@ -1,8 +1,10 @@
-# MIDI Pattern Launcher v1.21.0 Composer Bridge Protocol
+# MIDI Pattern Launcher v1.24.0 Composer Bridge Protocol
 
 The Composer Bridge allows external MIDI tools, DAW MIDI clips, scripts, and controller devices to edit pattern data by sending MIDI SysEx messages to the plugin.
 
-Composer Bridge messages are handled only when **External Control** is enabled in the plugin UI.
+As of v1.24.0, Debug builds include a constructor-time Composer Bridge protocol self-test harness that validates ACK/NACK behavior for valid, malformed, invalid-pattern, invalid-step, and unsupported-command SysEx messages.
+
+Composer Bridge messages are handled only when **Composer Bridge Enabled** is enabled in the plugin UI. This switch is independent from the general **External Control Enabled** setting used for MIDI CC control.
 
 ## SysEx packet format
 
@@ -180,4 +182,4 @@ F7
 - Unknown commands with a valid Composer Bridge header are consumed and ignored.
 - Malformed known commands with valid headers are consumed and ignored.
 - SysEx messages with other headers are ignored by the Composer Bridge.
-- Composer Bridge currently uses the existing External Control enable switch.
+- Composer Bridge uses its own **Composer Bridge Enabled** switch, independent from the general **External Control Enabled** setting.
