@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <JuceHeader.h>
 #include <vector>
@@ -163,6 +163,10 @@ private:
                                     int status,
                                     int originalCommand,
                                     int detail);
+
+    void sendComposerBridgePatternDump(juce::MidiBuffer& midiMessages,
+                                       int sampleOffset,
+                                       int patternIndex);
 
     double mySampleRate = 44100.0;
 
