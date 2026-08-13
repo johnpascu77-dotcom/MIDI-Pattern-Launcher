@@ -149,6 +149,7 @@ private:
     void syncTargetStepFromParameters();
 
     bool handleExternalControlCC(const juce::MidiMessage& message);
+    bool handleComposerBridgeSysEx(const juce::MidiMessage& message);
 
     double mySampleRate = 44100.0;
 

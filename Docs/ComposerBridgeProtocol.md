@@ -1,0 +1,122 @@
+# MIDI Pattern Launcher v1.20.0 Composer Bridge Protocol
+
+The Composer Bridge allows external MIDI tools, DAW MIDI clips, scripts, and controller devices to edit pattern data by sending MIDI SysEx messages to the plugin.
+
+Composer Bridge messages are handled only when **External Control** is enabled in the plugin UI.
+
+## SysEx packet format
+
+```text
+F0 7D 4D 50 4C 01 CMD ... F7
+```
+
+## Header
+
+| Byte | Hex | Meaning |
+|---:|---:|---|
+| 0 | `F0` | SysEx start |
+| 1 | `7D` | Non-commercial / educational manufacturer ID |
+| 2 | `4D` | ASCII `M` |
+| 3 | `50` | ASCII `P` |
+| 4 | `4C` | ASCII `L` |
+| 5 | `01` | Protocol version |
+| 6 | `CMD` | Command |
+| Last | `F7` | SysEx end |
+
+JUCE exposes the internal payload to the plugin as:
+
+```text
+7D 4D 50 4C 01 CMD ...
+```
+
+## Indexing
+
+Patterns and steps are zero-based.
+
+| User-facing name | Protocol value |
+|---|---:|
+| Pattern 1 | `00` |
+| Pattern 2 | `01` |
+| Pattern 3 | `02` |
+| Step 1 | `00` |
+| Step 16 | `0F` |
+
+## Command `01` — Set step
+
+```text
+F0 7D 4D 50 4C 01 01 pattern step enabled note velocity duration F7
+```
+
+| Field | Range | Meaning |
+|---|---:|---|
+| `pattern` | `00`–`02` | Target pattern |
+| `step` | `00`–`0F` | Target step |
+| `enabled` | `00` or `01` | Whether the step contains a note |
+| `note` | `00`–`7F` | MIDI note number |
+| `velocity` | `01`–`7F` | MIDI velocity |
+| `duration` | `01`–`10` | Duration in steps, 1–16 decimal |
+
+If `enabled` is `00`, the target step is cleared. In that case, `note`, `velocity`, and `duration` are ignored.
+
+### Example: Set Pattern 1 Step 4 to C3 velocity 100 duration 1
+
+```text
+F0 7D 4D 50 4C 01 01 00 03 01 3C 64 01 F7
+```
+
+Meaning:
+
+```text
+Pattern 1
+Step 4
+Enabled
+Note 60
+Velocity 100
+Duration 1
+```
+
+### Example: Clear Pattern 2 Step 8
+
+```text
+F0 7D 4D 50 4C 01 01 01 07 00 00 00 00 F7
+```
+
+## Command `02` — Clear pattern
+
+```text
+F0 7D 4D 50 4C 01 02 pattern F7
+```
+
+| Field | Range | Meaning |
+|---|---:|---|
+| `pattern` | `00`–`02` | Pattern to clear |
+
+### Example: Clear Pattern 1
+
+```text
+F0 7D 4D 50 4C 01 02 00 F7
+```
+
+## Command `03` — Copy pattern
+
+```text
+F0 7D 4D 50 4C 01 03 sourcePattern destinationPattern F7
+```
+
+| Field | Range | Meaning |
+|---|---:|---|
+| `sourcePattern` | `00`–`02` | Pattern to copy from |
+| `destinationPattern` | `00`–`02` | Pattern to copy to |
+
+### Example: Copy Pattern 1 to Pattern 2
+
+```text
+F0 7D 4D 50 4C 01 03 00 01 F7
+```
+
+## Notes
+
+- Unknown commands with a valid Composer Bridge header are consumed and ignored.
+- Malformed known commands with valid headers are consumed and ignored.
+- SysEx messages with other headers are ignored by the Composer Bridge.
+- Composer Bridge currently uses the existing External Control enable switch.
