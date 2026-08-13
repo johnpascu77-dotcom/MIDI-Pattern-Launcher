@@ -1081,6 +1081,140 @@ bool MidiPatternLauncherAudioProcessor::isBusesLayoutSupported(const BusesLayout
 // All Notes Off message. The individual note-offs are the important part for
 // stubborn instruments/hosts that do not fully react to CC-style panic messages.
 
+
+bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::MidiMessage& message)
+{
+    if (!message.isSysEx())
+        return false;
+
+    if (!isExternalControlEnabled())
+        return false;
+
+    const auto* data = message.getSysExData();
+    const int dataSize = message.getSysExDataSize();
+
+    // v1.20.0 Composer Bridge SysEx protocol.
+    //
+    // JUCE exposes only the payload bytes between F0 and F7 via getSysExData().
+    //
+    // Header:
+    //   7D 4D 50 4C 01
+    //
+    // 7D       = non-commercial/educational SysEx manufacturer ID
+    // 4D 50 4C = ASCII "MPL"
+    // 01       = protocol version
+    //
+    // Commands:
+    //   01 pattern step enabled note velocity duration
+    //   02 pattern
+    //   03 sourcePattern destinationPattern
+
+    constexpr uint8 manufacturerId = 0x7D;
+    constexpr uint8 magicM = 0x4D;
+    constexpr uint8 magicP = 0x50;
+    constexpr uint8 magicL = 0x4C;
+    constexpr uint8 protocolVersion = 0x01;
+
+    constexpr int headerSize = 5;
+    constexpr int commandIndex = headerSize;
+
+    if (dataSize < headerSize + 1)
+        return false;
+
+    if (static_cast<uint8>(data[0]) != manufacturerId
+        || static_cast<uint8>(data[1]) != magicM
+        || static_cast<uint8>(data[2]) != magicP
+        || static_cast<uint8>(data[3]) != magicL
+        || static_cast<uint8>(data[4]) != protocolVersion)
+    {
+        return false;
+    }
+
+    const int command = static_cast<int>(static_cast<uint8>(data[commandIndex]));
+
+    auto getByte = [data, dataSize](int index) -> int
+    {
+        if (index < 0 || index >= dataSize)
+            return 0;
+
+        return static_cast<int>(static_cast<uint8>(data[index]));
+    };
+
+    switch (command)
+    {
+        case 0x01:
+        {
+            // Set step:
+            // 7D 4D 50 4C 01 01 pattern step enabled note velocity duration
+            constexpr int requiredSize = headerSize + 1 + 6;
+
+            if (dataSize < requiredSize)
+                return true;
+
+            const int patternIndex = getByte(commandIndex + 1);
+            const int stepIndex = getByte(commandIndex + 2);
+            const bool enabled = getByte(commandIndex + 3) != 0;
+            const int note = getByte(commandIndex + 4);
+            const int velocity = getByte(commandIndex + 5);
+            const int durationSteps = getByte(commandIndex + 6);
+
+            if (patternIndex < 0 || patternIndex >= numPatterns)
+                return true;
+
+            if (stepIndex < 0 || stepIndex >= patternLength)
+                return true;
+
+            if (enabled)
+                setStepValues(patternIndex, stepIndex, note, velocity, durationSteps);
+            else
+                clearStep(patternIndex, stepIndex);
+
+            return true;
+        }
+
+        case 0x02:
+        {
+            // Clear pattern:
+            // 7D 4D 50 4C 01 02 pattern
+            constexpr int requiredSize = headerSize + 1 + 1;
+
+            if (dataSize < requiredSize)
+                return true;
+
+            const int patternIndex = getByte(commandIndex + 1);
+
+            if (patternIndex >= 0 && patternIndex < numPatterns)
+                clearPattern(patternIndex);
+
+            return true;
+        }
+
+        case 0x03:
+        {
+            // Copy pattern:
+            // 7D 4D 50 4C 01 03 sourcePattern destinationPattern
+            constexpr int requiredSize = headerSize + 1 + 2;
+
+            if (dataSize < requiredSize)
+                return true;
+
+            const int sourcePatternIndex = getByte(commandIndex + 1);
+            const int destinationPatternIndex = getByte(commandIndex + 2);
+
+            if (sourcePatternIndex >= 0 && sourcePatternIndex < numPatterns
+                && destinationPatternIndex >= 0 && destinationPatternIndex < numPatterns)
+            {
+                copyPattern(sourcePatternIndex, destinationPatternIndex);
+            }
+
+            return true;
+        }
+
+        default:
+            return true;
+    }
+}
+
 bool MidiPatternLauncherAudioProcessor::handleExternalControlCC(const juce::MidiMessage& message)
 {
     if (!message.isController())
@@ -1218,6 +1352,9 @@ void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& b
     for (const auto metadata : incomingMidi)
     {
         const auto message = metadata.getMessage();
+
+        if (handleComposerBridgeSysEx(message))
+            continue;
 
         if (handleExternalControlCC(message))
             continue;
