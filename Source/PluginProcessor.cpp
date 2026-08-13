@@ -53,6 +53,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout MidiPatternLauncherAudioProc
         "External Control Enabled",
         false));
 
+    parameters.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("composerBridgeEnabledParam", 1),
+        "Composer Bridge Enabled",
+        true));
+
     parameters.push_back(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID("externalControlChannelParam", 1),
         "External Control Channel",
@@ -168,6 +173,11 @@ float MidiPatternLauncherAudioProcessor::getGlobalSwingAmount() const
 bool MidiPatternLauncherAudioProcessor::isExternalControlEnabled() const
 {
     return getBoolParameterValue("externalControlEnabledParam");
+}
+
+bool MidiPatternLauncherAudioProcessor::isComposerBridgeEnabled() const
+{
+    return getBoolParameterValue("composerBridgeEnabledParam");
 }
 
 int MidiPatternLauncherAudioProcessor::getExternalControlChannel() const
@@ -1110,7 +1120,7 @@ bool MidiPatternLauncherAudioProcessor::handleComposerBridgeSysEx(const juce::Mi
     if (!message.isSysEx())
         return false;
 
-    if (!isExternalControlEnabled())
+    if (!isComposerBridgeEnabled())
         return false;
 
     const auto* data = message.getSysExData();

@@ -49,6 +49,7 @@ public:
     float getGlobalSwingAmount() const;
 
     bool isExternalControlEnabled() const;
+    bool isComposerBridgeEnabled() const;
     int getExternalControlChannel() const;
 
     int getEditorViewModeIndex() const;
