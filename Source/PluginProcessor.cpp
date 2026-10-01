@@ -81,6 +81,30 @@ juce::AudioProcessorValueTreeState::ParameterLayout MidiPatternLauncherAudioProc
         },
         0));
 
+    // Output MIDI Channel (2026-09-21): the channel this instance's own
+    // generated notes are sent on - previously hardcoded to a compile-time
+    // constexpr 1 in processBlock's note-generation loop, unconditionally,
+    // regardless of this instance's identity. Found live: routing several
+    // instances' note output into one shared multi-timbral destination
+    // (a Vienna Ensemble Pro instance addressed by MIDI channel) collapsed
+    // every instance onto channel 1 no matter what. Distinct from External
+    // Control Channel above (an input-side concept, and "All"/0 is a
+    // meaningful value there) - this has no "All" option, since a single
+    // output stream can only ever carry one channel at a time. Defaults to
+    // 1 so an existing project's saved state (no value for this new
+    // parameter yet) reproduces the old hardcoded behavior exactly, not a
+    // silent change.
+    parameters.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("outputMidiChannelParam", 1),
+        "Output MIDI Channel",
+        juce::StringArray{
+            "1", "2", "3", "4",
+            "5", "6", "7", "8",
+            "9", "10", "11", "12",
+            "13", "14", "15", "16"
+        },
+        0));
+
     // v1.28.0: Swing narrowed from a continuous slider to a 3-state choice
     // (Off/Triplet/Shuffle) - a continuous value almost always landed
     // somewhere between the range's only clean ratios, musically ambiguous
@@ -252,6 +276,14 @@ int MidiPatternLauncherAudioProcessor::getExternalControlChannel() const
 {
     // 0 = All, 1..16 = specific MIDI channel.
     return juce::jlimit(0, 16, getChoiceParameterIndex("externalControlChannelParam"));
+}
+
+int MidiPatternLauncherAudioProcessor::getOutputMidiChannel() const
+{
+    // Choice index 0 = channel 1, ... index 15 = channel 16 - no "All"
+    // option here, unlike getExternalControlChannel() above (see this
+    // parameter's own declaration comment for why).
+    return juce::jlimit(1, 16, getChoiceParameterIndex("outputMidiChannelParam") + 1);
 }
 
 int MidiPatternLauncherAudioProcessor::getEditorViewModeIndex() const
@@ -2104,10 +2136,21 @@ bool MidiPatternLauncherAudioProcessor::handleExternalControlCC(const juce::Midi
 
 void MidiPatternLauncherAudioProcessor::sendAllNotesOffNow(juce::MidiBuffer& midiMessages, int sampleOffset)
 {
-    for (int note = 0; note < 128; ++note)
-        midiMessages.addEvent(juce::MidiMessage::noteOff(1, note), sampleOffset);
+    // Found alongside the processBlock hardcode (2026-09-21): this safety
+    // net has to silence whatever channel this instance's own notes
+    // actually went out on (getOutputMidiChannel()), not always channel 1 -
+    // otherwise, once an instance's output channel differs from 1, a
+    // pattern switch stops actually flushing its notes, orphaning them
+    // exactly like the stuck-note class of bug already chased once this
+    // session (Composer Mastermind's own write_pattern, unrelated code but
+    // the identical failure mode: a safety net silently not covering the
+    // channel that's actually live).
+    const int channel = getOutputMidiChannel();
 
-    midiMessages.addEvent(juce::MidiMessage::allNotesOff(1), sampleOffset);
+    for (int note = 0; note < 128; ++note)
+        midiMessages.addEvent(juce::MidiMessage::noteOff(channel, note), sampleOffset);
+
+    midiMessages.addEvent(juce::MidiMessage::allNotesOff(channel), sampleOffset);
 
     pendingNoteOffs.clear();
 }
@@ -2261,7 +2304,7 @@ void MidiPatternLauncherAudioProcessor::processBlock(juce::AudioBuffer<float>& b
     const int lastStepInBlock = static_cast<int> (std::floor(ppqEnd / effectiveGridStepLengthInPpq));
     const int firstStepForNoteOns = firstGridStepInBlock - 1;
 
-    constexpr int midiChannel = 1;
+    const int midiChannel = getOutputMidiChannel();
 
     for (int step = firstStepForNoteOns; step <= lastStepInBlock; ++step)
     {

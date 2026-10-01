@@ -7,7 +7,9 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 {
     // v1.29.0: +32 over the historical 760 to make room for the new Rate row
     // (targetRow3) split out from what used to be one overflowing targetRow2.
-    setSize(900, 792);
+    // 2026-09-21: +32 again over that 792 for the new Output MIDI Channel
+    // row (targetRow4).
+    setSize(900, 824);
 
     addAndMakeVisible(editPattern1Button);
     addAndMakeVisible(editPattern2Button);
@@ -60,6 +62,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     setupLabel(targetEnabledLabel, "Enabled");
     setupLabel(externalControlLabel, "External");
     setupLabel(externalControlChannelLabel, "Channel");
+    setupLabel(outputMidiChannelLabel, "Output Ch");
 
     addAndMakeVisible(targetTitleLabel);
     addAndMakeVisible(targetPatternLabel);
@@ -74,6 +77,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     addAndMakeVisible(targetEnabledLabel);
     addAndMakeVisible(externalControlLabel);
     addAndMakeVisible(externalControlChannelLabel);
+    addAndMakeVisible(outputMidiChannelLabel);
 
     targetPatternBox.addItem("Pattern 1", 1);
     targetPatternBox.addItem("Pattern 2", 2);
@@ -96,6 +100,9 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     externalControlChannelBox.addItem("All", 1);
     for (int channel = 1; channel <= 16; ++channel)
         externalControlChannelBox.addItem(juce::String(channel), channel + 1);
+
+    for (int channel = 1; channel <= 16; ++channel)
+        outputMidiChannelBox.addItem(juce::String(channel), channel);
 
     auto setupSlider = [](juce::Slider& slider)
         {
@@ -123,6 +130,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     addAndMakeVisible(targetEnabledButton);
     addAndMakeVisible(externalControlEnabledButton);
     addAndMakeVisible(externalControlChannelBox);
+    addAndMakeVisible(outputMidiChannelBox);
 
     midiDebugLabel.setText("Last CC: none", juce::dontSendNotification);
     midiDebugLabel.setColour(juce::Label::textColourId, juce::Colours::white);
@@ -184,6 +192,9 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     externalControlChannelAttachment = std::make_unique<ComboBoxAttachment>(
         apvts, "externalControlChannelParam", externalControlChannelBox);
+
+    outputMidiChannelAttachment = std::make_unique<ComboBoxAttachment>(
+        apvts, "outputMidiChannelParam", outputMidiChannelBox);
 
     audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
 
@@ -2476,6 +2487,17 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
 
     externalControlChannelLabel.setBounds(targetRow3.removeFromLeft(64));
     externalControlChannelBox.setBounds(targetRow3.removeFromLeft(90));
+
+    bounds.removeFromTop(6);
+
+    auto targetRow4 = bounds.removeFromTop(26);
+
+    // Output MIDI Channel (2026-09-21): which channel this instance's own
+    // generated notes go out on - see getOutputMidiChannel()'s own comment
+    // for why this exists. Its own row, not squeezed onto targetRow3 -
+    // that row was already full (Swing/Rate/External On/External Channel).
+    outputMidiChannelLabel.setBounds(targetRow4.removeFromLeft(64));
+    outputMidiChannelBox.setBounds(targetRow4.removeFromLeft(90));
 }
 
 

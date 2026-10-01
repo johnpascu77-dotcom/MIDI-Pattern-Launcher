@@ -62,6 +62,12 @@ public:
     bool isComposerBridgeEnabled() const;
     int getExternalControlChannel() const;
 
+    // Output MIDI Channel (2026-09-21): which channel this instance's own
+    // generated notes go out on - see the parameter's own declaration
+    // comment in PluginProcessor.cpp for why this exists (was previously
+    // hardcoded to a compile-time constant, unconditionally channel 1).
+    int getOutputMidiChannel() const;
+
     int getEditorViewModeIndex() const;
 
 #if JUCE_DEBUG

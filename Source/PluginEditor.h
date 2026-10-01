@@ -172,6 +172,7 @@ private:
     juce::Label targetEnabledLabel;
     juce::Label externalControlLabel;
     juce::Label externalControlChannelLabel;
+    juce::Label outputMidiChannelLabel;
     juce::Label midiDebugLabel;
     juce::ToggleButton externalControlToggle;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> externalControlToggleAttachment;
@@ -190,6 +191,7 @@ private:
     juce::ToggleButton targetEnabledButton{ "Enabled" };
     juce::ToggleButton externalControlEnabledButton{ "Ext Ctrl" };
     juce::ComboBox externalControlChannelBox;
+    juce::ComboBox outputMidiChannelBox;
 
     std::unique_ptr<ComboBoxAttachment> targetPatternAttachment;
     std::unique_ptr<ComboBoxAttachment> gridModeAttachment;
@@ -203,6 +205,7 @@ private:
     std::unique_ptr<ButtonAttachment> targetEnabledAttachment;
     std::unique_ptr<ButtonAttachment> externalControlEnabledAttachment;
     std::unique_ptr<ComboBoxAttachment> externalControlChannelAttachment;
+    std::unique_ptr<ComboBoxAttachment> outputMidiChannelAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MidiPatternLauncherAudioProcessorEditor)
 };
