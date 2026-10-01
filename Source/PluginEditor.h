@@ -4,6 +4,7 @@
 #include "PluginProcessor.h"
 
 class MidiPatternLauncherAudioProcessorEditor : public juce::AudioProcessorEditor,
+    public juce::FileDragAndDropTarget,
     private juce::Timer
 {
 public:
@@ -15,6 +16,9 @@ public:
     void mouseDown(const juce::MouseEvent& event) override;
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
+
+    bool isInterestedInFileDrag(const juce::StringArray& files) override;
+    void filesDropped(const juce::StringArray& files, int x, int y) override;
 
 private:
     void timerCallback() override;
@@ -72,6 +76,7 @@ private:
                                    int ignoredStepIndex);
 
     void setupButtonCallbacks();
+    void importMidiFileIntoDisplayedPattern(const juce::File& file);
     void updateEditPatternButtonHighlights();
 
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
@@ -136,6 +141,10 @@ private:
     juce::TextButton copyToP2Button{ "Copy > P2" };
     juce::TextButton copyToP3Button{ "Copy > P3" };
     juce::TextButton clearPatternButton{ "Clear Pattern" };
+    juce::TextButton importMidiButton{ "Import MIDI" };
+
+    std::unique_ptr<juce::FileChooser> importMidiChooser;
+    juce::String importStatusText;
 
     juce::TextButton noteDownButton{ "Note -" };
     juce::TextButton noteUpButton{ "Note +" };

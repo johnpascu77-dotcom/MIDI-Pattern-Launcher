@@ -99,6 +99,13 @@ public:
     void copyPattern(int sourcePatternIndex, int destinationPatternIndex);
     void clearPattern(int patternIndex);
 
+    // Replaces patternIndex's step content with the first grid-length window
+    // (16 steps Binary / 12 Ternary) of a Standard MIDI File, reduced to one
+    // note per step. Transforms and loop length are left alone. Returns false
+    // (pattern untouched) if the file can't be read or has no notes in the
+    // window; summaryOut describes the result either way.
+    bool importMonophonicMidiFile(int patternIndex, const juce::File& file, juce::String& summaryOut);
+
     int getTargetPatternIndex() const;
     int getTargetStepIndex() const;
     int getTargetNote() const;

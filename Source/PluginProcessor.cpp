@@ -925,6 +925,176 @@ void MidiPatternLauncherAudioProcessor::clearPattern(int patternIndex)
 }
 
 //==============================================================================
+// Monophonic MIDI file import.
+//
+// Works in file ticks, never seconds, so the file's own tempo map is
+// irrelevant: step N starts at N * (4 / gridStepCount) quarter notes from the
+// file's tick 0. Leading silence is kept, so a pickup lands where it was.
+//
+// Reduction rules (MPL holds one note per step):
+//   - onsets snap to the nearest grid step; onsets at or past the window are ignored
+//   - two notes on one step: louder wins, higher pitch breaks a velocity tie
+//   - duration rounds to whole steps (min 1), then is cut at the next kept
+//     onset (same no-overlap rule as normalizePattern on the Composer side)
+//     and at the window end
+//
+// The whole pattern is built locally and assigned in one go, the same way
+// copyPattern() writes, so playback never sees a half-imported pattern.
+bool MidiPatternLauncherAudioProcessor::importMonophonicMidiFile(int patternIndex,
+    const juce::File& file,
+    juce::String& summaryOut)
+{
+    if (patternIndex < 0 || patternIndex >= numPatterns)
+    {
+        summaryOut = "Import failed: invalid pattern.";
+        return false;
+    }
+
+    juce::FileInputStream stream(file);
+    juce::MidiFile midiFile;
+
+    if (!stream.openedOk() || !midiFile.readFrom(stream))
+    {
+        summaryOut = "Import failed: " + file.getFileName() + " is not a readable MIDI file.";
+        return false;
+    }
+
+    const short timeFormat = midiFile.getTimeFormat();
+
+    if (timeFormat <= 0)
+    {
+        summaryOut = "Import failed: SMPTE-timed MIDI files aren't supported.";
+        return false;
+    }
+
+    const int gridStepCount = getGridStepCount();
+    const double ticksPerStep = static_cast<double>(timeFormat) * 4.0 / static_cast<double>(gridStepCount);
+
+    struct Candidate
+    {
+        int note = -1;
+        int velocity = 0;
+        int endStep = 0;
+    };
+
+    std::array<Candidate, patternLength> candidates{};
+    int notesPastWindow = 0;
+    int notesCollided = 0;
+
+    for (int trackIndex = 0; trackIndex < midiFile.getNumTracks(); ++trackIndex)
+    {
+        juce::MidiMessageSequence sequence(*midiFile.getTrack(trackIndex));
+        sequence.updateMatchedPairs();
+
+        for (int eventIndex = 0; eventIndex < sequence.getNumEvents(); ++eventIndex)
+        {
+            const auto& message = sequence.getEventPointer(eventIndex)->message;
+
+            if (!message.isNoteOn())
+                continue;
+
+            const double startTicks = message.getTimeStamp();
+            const int startStep = static_cast<int>(std::lround(startTicks / ticksPerStep));
+
+            if (startStep >= gridStepCount)
+            {
+                ++notesPastWindow;
+                continue;
+            }
+
+            // A note-on with no matching note-off gets a single step.
+            const double offTicks = sequence.getTimeOfMatchingKeyUp(eventIndex);
+            const int endStep = offTicks > startTicks
+                ? juce::jmax(startStep + 1, static_cast<int>(std::lround(offTicks / ticksPerStep)))
+                : startStep + 1;
+
+            auto& slot = candidates[static_cast<size_t>(startStep)];
+            const int velocity = message.getVelocity();
+            const int note = message.getNoteNumber();
+
+            if (slot.note >= 0)
+            {
+                ++notesCollided;
+
+                const bool incomingWins = velocity > slot.velocity
+                    || (velocity == slot.velocity && note > slot.note);
+
+                if (!incomingWins)
+                    continue;
+            }
+
+            slot = { note, velocity, endStep };
+        }
+    }
+
+    Pattern imported{};
+    int notesImported = 0;
+    int notesShortened = 0;
+
+    for (int stepIndex = 0; stepIndex < gridStepCount; ++stepIndex)
+    {
+        const auto& candidate = candidates[static_cast<size_t>(stepIndex)];
+
+        if (candidate.note < 0)
+            continue;
+
+        int nextOnset = gridStepCount;
+
+        for (int later = stepIndex + 1; later < gridStepCount; ++later)
+        {
+            if (candidates[static_cast<size_t>(later)].note >= 0)
+            {
+                nextOnset = later;
+                break;
+            }
+        }
+
+        const int requestedDuration = candidate.endStep - stepIndex;
+        const int duration = juce::jlimit(1, nextOnset - stepIndex, requestedDuration);
+
+        if (duration < requestedDuration)
+            ++notesShortened;
+
+        auto& step = imported[static_cast<size_t>(stepIndex)];
+        step.note = juce::jlimit(0, 127, candidate.note);
+        step.velocity = juce::jlimit(1, 127, candidate.velocity);
+        step.durationSteps = duration;
+        ++notesImported;
+    }
+
+    if (notesImported == 0)
+    {
+        summaryOut = "Import failed: " + file.getFileName() + " has no notes in the first "
+            + juce::String(gridStepCount) + " steps.";
+        return false;
+    }
+
+    patterns[static_cast<size_t>(patternIndex)] = imported;
+
+    if (patternIndex == getTargetPatternIndex())
+        updateTargetParametersFromStep();
+
+    summaryOut = "Imported " + juce::String(notesImported) + " notes into P" + juce::String(patternIndex + 1)
+        + " from " + file.getFileName();
+
+    juce::StringArray details;
+
+    if (notesPastWindow > 0)
+        details.add(juce::String(notesPastWindow) + " past step " + juce::String(gridStepCount) + " ignored");
+
+    if (notesCollided > 0)
+        details.add(juce::String(notesCollided) + " overlapping dropped");
+
+    if (notesShortened > 0)
+        details.add(juce::String(notesShortened) + " shortened");
+
+    if (!details.isEmpty())
+        summaryOut << " (" << details.joinIntoString(", ") << ")";
+
+    return true;
+}
+
+//==============================================================================
 // v1.3.0 transpose helpers.
 // These are non-destructive: they do not change the stored step notes.
 

@@ -19,6 +19,7 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
     addAndMakeVisible(copyToP2Button);
     addAndMakeVisible(copyToP3Button);
     addAndMakeVisible(clearPatternButton);
+    addAndMakeVisible(importMidiButton);
 
     addAndMakeVisible(noteDownButton);
     addAndMakeVisible(noteUpButton);
@@ -268,6 +269,27 @@ void MidiPatternLauncherAudioProcessorEditor::setupButtonCallbacks()
         {
             audioProcessor.clearPattern(getDisplayedPattern());
             repaint();
+        };
+
+    importMidiButton.setTooltip("Load the first 16 steps (12 in Ternary) of a MIDI file into the pattern "
+                                "being edited, one note per step. You can also drop a .mid file onto the window.");
+
+    importMidiButton.onClick = [this]()
+        {
+            importMidiChooser = std::make_unique<juce::FileChooser>(
+                "Import MIDI into P" + juce::String(getDisplayedPattern() + 1),
+                juce::File(),
+                "*.mid;*.midi");
+
+            importMidiChooser->launchAsync(
+                juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                [this](const juce::FileChooser& chooser)
+                {
+                    const auto file = chooser.getResult();
+
+                    if (file.existsAsFile())
+                        importMidiFileIntoDisplayedPattern(file);
+                });
         };
 
     noteDownButton.onClick = [this]()
@@ -525,6 +547,42 @@ juce::String MidiPatternLauncherAudioProcessorEditor::rotationTextFromValue(int 
         return "+" + juce::String(value);
 
     return juce::String(value);
+}
+
+bool MidiPatternLauncherAudioProcessorEditor::isInterestedInFileDrag(const juce::StringArray& files)
+{
+    for (const auto& path : files)
+        if (juce::File(path).hasFileExtension("mid;midi"))
+            return true;
+
+    return false;
+}
+
+void MidiPatternLauncherAudioProcessorEditor::filesDropped(const juce::StringArray& files, int, int)
+{
+    for (const auto& path : files)
+    {
+        const juce::File file(path);
+
+        if (file.hasFileExtension("mid;midi"))
+        {
+            importMidiFileIntoDisplayedPattern(file);
+            return;
+        }
+    }
+}
+
+void MidiPatternLauncherAudioProcessorEditor::importMidiFileIntoDisplayedPattern(const juce::File& file)
+{
+    juce::String summary;
+    const bool imported = audioProcessor.importMonophonicMidiFile(getDisplayedPattern(), file, summary);
+
+    importStatusText = summary;
+
+    if (!imported)
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Import MIDI", summary);
+
+    repaint();
 }
 
 int MidiPatternLauncherAudioProcessorEditor::getDisplayedPattern() const
@@ -2238,15 +2296,28 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 
             textBox.removeFromTop(4);
 
+            auto statusRow = textBox.removeFromTop(18);
+
+            // The box has no spare row below this one at the editor's fixed
+            // size, so the last import summary shares it, right-aligned.
+            if (importStatusText.isNotEmpty())
+            {
+                g.setColour(juce::Colour(0xffe8d9a8));
+                g.setFont(12.0f);
+                g.drawFittedText(importStatusText,
+                    statusRow.removeFromRight(statusRow.getWidth() * 3 / 5),
+                    juce::Justification::centredRight,
+                    1);
+            }
+
             g.setColour(juce::Colour(0xffcfe8ef));
             g.setFont(12.0f);
             g.drawFittedText(
                 midiDebugLabel.getText() + "    |    External Control: "
                     + juce::String(externalControlToggle.getToggleState() ? "On" : "Off"),
-                textBox.removeFromTop(18),
+                statusRow,
                 juce::Justification::centredLeft,
                 1);
-
         }
     }
 
@@ -2354,7 +2425,7 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
     auto patternToolsRow = bounds.removeFromTop(36);
 
     const int toolsGap = 8;
-    const int toolCount = 7;
+    const int toolCount = 8;
     const int toolsButtonWidth = (patternToolsRow.getWidth() - ((toolCount - 1) * toolsGap)) / toolCount;
 
     editPattern1Button.setBounds(patternToolsRow.removeFromLeft(toolsButtonWidth));
@@ -2376,6 +2447,9 @@ void MidiPatternLauncherAudioProcessorEditor::resized()
     patternToolsRow.removeFromLeft(toolsGap);
 
     clearPatternButton.setBounds(patternToolsRow.removeFromLeft(toolsButtonWidth));
+    patternToolsRow.removeFromLeft(toolsGap);
+
+    importMidiButton.setBounds(patternToolsRow.removeFromLeft(toolsButtonWidth));
 
     bounds.removeFromTop(10);
 
