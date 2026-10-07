@@ -459,6 +459,25 @@ void MidiPatternLauncherAudioProcessorEditor::timerCallback()
     selectedEditPattern = audioProcessor.getTargetPatternIndex();
     selectedStep = audioProcessor.getTargetStepIndex();
 
+    // Melody roll follows the selection: when the selected step (or its note) changes and that note is outside the
+    // visible window, bring it into view. Wheel-scrolling away is respected until the selection changes again.
+    if (audioProcessor.isMelodyPaintMode()
+        && selectedEditPattern >= 0 && selectedEditPattern < 3
+        && selectedStep >= 0 && selectedStep < audioProcessor.getGridStepCount()
+        && audioProcessor.stepHasNote(selectedEditPattern, selectedStep))
+    {
+        const int selectedNote = audioProcessor.getStepNote(selectedEditPattern, selectedStep);
+        const int followKey = (selectedEditPattern * 100 + selectedStep) * 1000 + selectedNote;
+
+        if (followKey != melodyFollowKey)
+        {
+            melodyFollowKey = followKey;
+
+            if (selectedNote < melodyViewLowNote || selectedNote > melodyViewLowNote + kMelodyViewRows - 1)
+                centreMelodyViewOnNote(selectedNote);
+        }
+    }
+
     juce::String debugText = "Last CC: ";
 
     const int cc = audioProcessor.getDebugLastCCNumber();
@@ -482,6 +501,42 @@ void MidiPatternLauncherAudioProcessorEditor::timerCallback()
 
     updateEditPatternButtonHighlights();
     repaint();
+}
+
+void MidiPatternLauncherAudioProcessorEditor::setMelodyViewLowNote(int lowNote)
+{
+    const int clamped = juce::jlimit(0, 127 - (kMelodyViewRows - 1), lowNote);
+
+    if (clamped == melodyViewLowNote)
+        return;
+
+    melodyViewLowNote = clamped;
+    repaint();
+}
+
+void MidiPatternLauncherAudioProcessorEditor::centreMelodyViewOnNote(int midiNote)
+{
+    setMelodyViewLowNote(midiNote - kMelodyViewRows / 2);
+}
+
+void MidiPatternLauncherAudioProcessorEditor::mouseWheelMove(const juce::MouseEvent& event,
+    const juce::MouseWheelDetails& wheel)
+{
+    if (audioProcessor.isMelodyPaintMode() && getPatternMatrixArea().contains(event.getPosition()))
+    {
+        // 3 notes per wheel notch; Ctrl = a whole octave; Shift = single semitone.
+        const int notesPerNotch = event.mods.isCtrlDown() ? 12 : (event.mods.isShiftDown() ? 1 : 3);
+        const float notches = wheel.deltaY * (wheel.isReversed ? -1.0f : 1.0f) * 8.0f;
+        int delta = juce::roundToInt(notches) * notesPerNotch;
+
+        if (delta == 0 && wheel.deltaY != 0.0f)
+            delta = (wheel.deltaY > 0.0f ? 1 : -1) * notesPerNotch;   // tiny trackpad steps still move
+
+        setMelodyViewLowNote(melodyViewLowNote + delta);   // wheel up = higher notes, like a piano roll
+        return;
+    }
+
+    juce::AudioProcessorEditor::mouseWheelMove(event, wheel);
 }
 
 juce::String MidiPatternLauncherAudioProcessorEditor::patternNameFromValue(int value) const
@@ -668,9 +723,9 @@ bool MidiPatternLauncherAudioProcessorEditor::getMelodyPaintCellAtPosition(
     int& stepIndexOut,
     int& midiNoteOut) const
 {
-    static constexpr int melodyLowestMidiNote = 48;
-    static constexpr int melodyHighestMidiNote = 71;
-    static constexpr int melodyNoteCount = melodyHighestMidiNote - melodyLowestMidiNote + 1;
+    const int melodyLowestMidiNote = melodyViewLowNote;
+    const int melodyHighestMidiNote = melodyViewLowNote + kMelodyViewRows - 1;
+    const int melodyNoteCount = kMelodyViewRows;
 
     const int gridStepCount = audioProcessor.getGridStepCount();
 
@@ -886,8 +941,8 @@ void MidiPatternLauncherAudioProcessorEditor::setMelodyPaintCellValue(
     int midiNote,
     bool shouldHaveNote)
 {
-    static constexpr int melodyLowestMidiNote = 48;
-    static constexpr int melodyHighestMidiNote = 71;
+    const int melodyLowestMidiNote = melodyViewLowNote;
+    const int melodyHighestMidiNote = melodyViewLowNote + kMelodyViewRows - 1;
 
     const int gridStepCount = audioProcessor.getGridStepCount();
 
@@ -1846,7 +1901,7 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setFont(14.0f);
     g.setColour(juce::Colour(0xffcfe8ef));
-    g.drawFittedText("v1.28.1 - Composer Bridge v2",
+    g.drawFittedText("v1.28.2 - Composer Bridge v2",
         titleRow,
         juce::Justification::centredRight,
         1);
@@ -1896,9 +1951,9 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
     {
         auto melodyArea = getPatternMatrixArea();
 
-        static constexpr int melodyLowestMidiNote = 48;
-        static constexpr int melodyHighestMidiNote = 71;
-        static constexpr int melodyNoteCount = melodyHighestMidiNote - melodyLowestMidiNote + 1;
+        const int melodyLowestMidiNote = melodyViewLowNote;
+        const int melodyHighestMidiNote = melodyViewLowNote + kMelodyViewRows - 1;
+        const int melodyNoteCount = kMelodyViewRows;
 
         const int noteLabelWidth = 38;
         const int stepLabelHeight = 16;
@@ -2062,7 +2117,8 @@ void MidiPatternLauncherAudioProcessorEditor::paint(juce::Graphics& g)
         g.setFont(12.0f);
 
         juce::String melodyInfo;
-        melodyInfo << "MIDI notes 48-71    P" << (displayedPattern + 1)
+        melodyInfo << "MIDI notes " << melodyLowestMidiNote << "-" << melodyHighestMidiNote
+            << " (wheel scrolls, Ctrl = octave)    P" << (displayedPattern + 1)
             << "    Grid: " << gridStepCount << " steps";
 
         g.drawFittedText(melodyInfo,

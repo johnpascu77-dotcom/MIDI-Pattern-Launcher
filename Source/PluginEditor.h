@@ -16,6 +16,7 @@ public:
     void mouseDown(const juce::MouseEvent& event) override;
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
+    void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override;
 
     bool isInterestedInFileDrag(const juce::StringArray& files) override;
     void filesDropped(const juce::StringArray& files, int x, int y) override;
@@ -87,6 +88,14 @@ private:
 
     int selectedStep = 0;
     int selectedEditPattern = 0;
+
+    // Melody piano roll viewport: kMelodyViewRows consecutive MIDI notes starting at melodyViewLowNote.
+    // The roll can be scrolled over the full 0-127 range (mouse wheel) so low keyswitch/trigger notes are editable.
+    static constexpr int kMelodyViewRows = 24;
+    int melodyViewLowNote = 48;
+    int melodyFollowKey = -1;
+    void setMelodyViewLowNote(int lowNote);
+    void centreMelodyViewOnNote(int midiNote);
     
     enum class MatrixEditDragMode
     {
