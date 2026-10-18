@@ -5,6 +5,7 @@
 
 class MidiPatternLauncherAudioProcessorEditor : public juce::AudioProcessorEditor,
     public juce::FileDragAndDropTarget,
+    public juce::TooltipClient,
     private juce::Timer
 {
 public:
@@ -17,6 +18,7 @@ public:
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
     void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override;
+    juce::String getTooltip() override;
 
     bool isInterestedInFileDrag(const juce::StringArray& files) override;
     void filesDropped(const juce::StringArray& files, int x, int y) override;
@@ -85,6 +87,7 @@ private:
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
 
     MidiPatternLauncherAudioProcessor& audioProcessor;
+    juce::TooltipWindow tooltipWindow { this, 700 };   // without one, no setTooltip() text would ever show
 
     int selectedStep = 0;
     int selectedEditPattern = 0;

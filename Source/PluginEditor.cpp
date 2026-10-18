@@ -199,6 +199,63 @@ MidiPatternLauncherAudioProcessorEditor::MidiPatternLauncherAudioProcessorEditor
 
     audioProcessor.setTargetPatternAndStep(selectedEditPattern, selectedStep);
 
+    // Tooltips: hovering a control (or its label) says what it does. The grids themselves answer in getTooltip().
+    editPattern1Button.setTooltip("Edit pattern 1: the step, transform and copy buttons act on it (it does not change which pattern plays).");
+    editPattern2Button.setTooltip("Edit pattern 2: the step, transform and copy buttons act on it (it does not change which pattern plays).");
+    editPattern3Button.setTooltip("Edit pattern 3: the step, transform and copy buttons act on it (it does not change which pattern plays).");
+    copyToP1Button.setTooltip("Copy the pattern being edited into pattern 1 (notes, velocities and durations).");
+    copyToP2Button.setTooltip("Copy the pattern being edited into pattern 2 (notes, velocities and durations).");
+    copyToP3Button.setTooltip("Copy the pattern being edited into pattern 3 (notes, velocities and durations).");
+    clearPatternButton.setTooltip("Remove every note of the pattern being edited.");
+    noteDownButton.setTooltip("Lower the note of the selected step by one semitone.");
+    noteUpButton.setTooltip("Raise the note of the selected step by one semitone.");
+    velocityDownButton.setTooltip("Lower the velocity of the selected step by 5.");
+    velocityUpButton.setTooltip("Raise the velocity of the selected step by 5.");
+    durationDownButton.setTooltip("Shorten the selected step by one step length.");
+    durationUpButton.setTooltip("Lengthen the selected step by one step length (it cannot overlap the next note).");
+    clearButton.setTooltip("Remove the note of the selected step.");
+    makeNoteButton.setTooltip("Put a note on the selected step if it has none.");
+    transposeDownOctaveButton.setTooltip("Transpose the pattern being edited down an octave (a playback transformation: the stored notes are not changed).");
+    transposeDownButton.setTooltip("Transpose the pattern being edited down a semitone.");
+    transposeResetButton.setTooltip("Reset the transposition of the pattern being edited to 0.");
+    transposeUpButton.setTooltip("Transpose the pattern being edited up a semitone.");
+    transposeUpOctaveButton.setTooltip("Transpose the pattern being edited up an octave.");
+    rotationDownButton.setTooltip("Rotate the playback of the pattern being edited one step earlier. A source-step offset: the stored notes do not move.");
+    rotationResetButton.setTooltip("Reset the rotation of the pattern being edited to 0.");
+    rotationUpButton.setTooltip("Rotate the playback of the pattern being edited one step later. A source-step offset: the stored notes do not move.");
+    inversionToggleButton.setTooltip("Invert the pattern being edited: every pitch is mirrored around middle C (64 becomes 56, 67 becomes 53, 60 stays). Applied after M7 and before the transposition. The stored notes are not changed.");
+    retrogradeToggleButton.setTooltip("Play the pattern being edited backwards (retrograde).");
+    m7ToggleButton.setTooltip("M7: multiply every pitch class by 7 (mod 12), a classic twelve-tone operation that permutes the twelve pitch classes (C# becomes G, G becomes C#, C D and E stay); the octave is kept. Applied first, before Inversion and Transposition. The stored notes are not changed.");
+    targetTitleLabel.setTooltip("The controls below are the host-automatable target: which pattern and step a host automation lane edits (separate from the pattern you select with the Edit buttons).");
+    targetPatternLabel.setTooltip("Which pattern the host target step parameters edit.");
+    targetPatternBox.setTooltip("Which pattern the host target step parameters (Step, Note, Velocity, Duration, Enabled) edit. Independent of the Edit buttons, so host automation never depends on what is selected on screen.");
+    gridModeLabel.setTooltip("Binary 16 or Ternary 12: how many steps a pattern has.");
+    gridModeBox.setTooltip("Binary 16: sixteen steps per bar. Ternary 12: twelve steps per bar (triplet feel). Switching keeps the patterns but reads the first steps.");
+    editorViewModeLabel.setTooltip("Matrix or Melody: how the patterns are drawn and edited.");
+    editorViewModeBox.setTooltip("Matrix: the three patterns as rows of steps, fast target editing. Melody: a piano roll of the pattern being edited, for placing notes and lengths.");
+    targetStepLabel.setTooltip("The step the host target parameters edit.");
+    targetStepSlider.setTooltip("The step (1 to 16, or 12) that the host target parameters edit.");
+    targetNoteLabel.setTooltip("The note of the target step.");
+    targetNoteSlider.setTooltip("The MIDI note of the target step. Automatable.");
+    targetVelocityLabel.setTooltip("The velocity of the target step.");
+    targetVelocitySlider.setTooltip("The velocity of the target step. Automatable.");
+    targetDurationLabel.setTooltip("The length of the target step, in steps.");
+    targetDurationSlider.setTooltip("The length of the target step, in steps. Automatable.");
+    targetEnabledLabel.setTooltip("Whether the target step has a note.");
+    targetEnabledButton.setTooltip("Whether the target step has a note. Automatable.");
+    globalSwingLabel.setTooltip("The swing of the whole device.");
+    globalSwingBox.setTooltip("Off: straight. Triplet: every second step is delayed to a triplet feel. Shuffle: a long-short (dotted) feel. Three clean choices, on purpose.");
+    globalRateLabel.setTooltip("The playback speed of the patterns relative to the host.");
+    globalRateBox.setTooltip("Augmented: half speed (every step twice as long). Normal. Diminished: double speed. The patterns stay locked to the host tempo.");
+    externalControlLabel.setTooltip("Control the plug-in from MIDI: pattern launch, grid, rate, swing and transformations by CC.");
+    externalControlToggle.setTooltip("External Control: let incoming MIDI CC messages launch patterns (CC 20: 0 = stop, 1-3 = pattern 1-3, switched on the bar line), choose the target pattern, grid mode and rate, and apply mutations. Composer Mastermind uses this.");
+    externalControlEnabledButton.setTooltip("External Control: let incoming MIDI CC messages control the plug-in (pattern launch, grid, rate, swing, transformations).");
+    externalControlChannelLabel.setTooltip("The MIDI channel External Control listens to.");
+    externalControlChannelBox.setTooltip("The MIDI channel External Control listens to. All = any channel. Set it to the instance's own channel so several launchers in one project do not answer each other.");
+    outputMidiChannelLabel.setTooltip("The MIDI channel the notes are sent on.");
+    outputMidiChannelBox.setTooltip("The MIDI channel the pattern notes are sent on (1 to 16).");
+    midiDebugLabel.setTooltip("The last control-change message received, and whether it was accepted or ignored (wrong channel, External Control off). The first thing to check when a CC seems to do nothing.");
+
     setupButtonCallbacks();
     updateEditPatternButtonHighlights();
 
@@ -427,6 +484,24 @@ void MidiPatternLauncherAudioProcessorEditor::setupButtonCallbacks()
             audioProcessor.updateAutomationParametersForPattern(pattern);
             repaint();
         };
+}
+
+// Hover help for the grids, which are drawn by the editor itself (not components): the gestures of the current view.
+juce::String MidiPatternLauncherAudioProcessorEditor::getTooltip()
+{
+    const auto position = getMouseXYRelative();
+
+    if (! getPatternMatrixArea().contains(position))
+        return {};
+
+    if (audioProcessor.isMelodyPaintMode())
+        return "Melody view. Left drag on an empty area: create a note and set its length. Right click a note: erase it. "
+               "Shift drag a note: move it in time. Alt drag: edit its pitch. Alt + Shift drag: pitch and length. "
+               "Ctrl drag: velocity. Mouse wheel: scroll the notes.";
+
+    return "Matrix view. Left drag: create a note and paint its pitch vertically. Right drag: erase notes. "
+           "Alt drag: paint the pitch of existing notes only. Ctrl drag: paint the velocity of existing notes only. "
+           "Shift drag: move an existing step sideways within its pattern row.";
 }
 
 void MidiPatternLauncherAudioProcessorEditor::updateEditPatternButtonHighlights()
